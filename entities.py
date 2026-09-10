@@ -71,11 +71,14 @@ class Particle(pygame.sprite.Sprite):
 
         self.velocity = 0
         self.acceleration = 0
+        self.attraction_displacement = pygame.math.Vector2()
 
         self.vibrate_time = pygame.time.get_ticks()
         self.vibration_direction = 1 # This'll oscillate between 1 and -1. 1 = Moving downwards and -1 = Moving upwards
         self.vibration_dy = 0
         self.vibration_velocity = vibration_velocity
+
+        self.applied_friction = 0
 
         self.image = None
         self.rect = None
@@ -85,6 +88,25 @@ class Particle(pygame.sprite.Sprite):
 
     def update(self):
         return
+
+    def apply_attraction(self, other):
+        # Get distance between two particles
+        offset = pygame.math.Vector2(other.rect.center) - self.rect.center
+        distance = offset.length()
+
+        # Check if distance is within limit
+        if distance <= MINIMUM_ATTRACTION_DISTANCE or distance >= MAXIMUM_ATTRACTION_DISTANCE:
+            return
+
+        # displacement = min(ATTRACTION_SPEED, (distance - MINIMUM_ATTRACTION_DISTANCE) / 2)
+        # Increment by unit vector * speed
+        self.attraction_displacement += offset.normalize() * ATTRACTION_SPEED
+
+    def update_attraction(self):
+        self.rect.center += self.attraction_displacement
+
+        self.attraction_displacement.x = 0
+        self.attraction_displacement.y = 0
 
     # Shifts position of the particle to mimic vibration on y-axis w.r.t center of rect
     # TODO: Use a sine function here, it'd look better 
@@ -137,7 +159,7 @@ class Electron(Particle):
 
         # Calculate new velocity and acceleration due to friction
         self.velocity += self.acceleration
-        self.acceleration -= FRICTION
+        self.acceleration -= FRICTION + self.applied_friction
 
         # If friction acts long enough and velocity is less than zero, we will cap it to zero
         if self.velocity <= 0:
@@ -148,8 +170,9 @@ class Electron(Particle):
         dx += self.velocity * math.cos(-self.angle)
         dy += self.velocity * math.sin(-self.angle)
 
-        self.rect.x += dx
-        self.rect.y += dy
+        self.rect.x += DISPLACEMENT_SCALE * dx
+        self.rect.y += DISPLACEMENT_SCALE * dy
+        self.update_attraction()
 
 
 class Positron(Particle):
@@ -167,6 +190,7 @@ class Positron(Particle):
 
     def update(self):
         self.vibrate(VIBRATION_LIMIT)
+        self.update_attraction()
 
 
 class Player(Electron):
@@ -190,10 +214,14 @@ class Player(Electron):
         self.acceleration = INITIAL_ACCELERATION
         self.angle = angle
 
+    def apply_friction(self):
+        self.applied_friction += 0.75
+
     def update(self):
         super().update()
         if self.velocity == 0 and self.acceleration == 0:
             self.update_state(PlayerState.AIMING)
+            self.applied_friction = 0
 
 class Enemy(Positron):
     def __init__(self, init_x, init_y):

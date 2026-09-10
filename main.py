@@ -40,9 +40,16 @@ class Game:
                 raise SystemExit
 
             if event.type == pygame.MOUSEBUTTONDOWN:
+                # Shoot electron
                 if event.button == 1: # Left click
                     if self.player.state == PlayerState.AIMING:
                         self.player.move(self.arrow.angle)
+
+            if event.type == pygame.KEYDOWN:
+                # Apply resistive force
+                if event.key == pygame.K_SPACE:
+                    if self.player.state == PlayerState.MOVING:
+                        self.player.apply_friction()
 
 
         # Mouse position for arrow
@@ -51,6 +58,11 @@ class Game:
 
     # Update entity states
     def update(self):
+        for electron in self.player_group:
+            for positron in self.enemy_group:
+                electron.apply_attraction(positron) # Apply electron attraction to positron
+                positron.apply_attraction(electron) # Apply positron attraction to electron
+
         for player in self.player_group:
             player.update()
 
