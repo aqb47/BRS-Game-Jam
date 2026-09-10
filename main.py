@@ -1,7 +1,7 @@
 # Main script
 import pygame
 from config import *
-from entities import Electron, Positron, Player, Enemy, Arrow
+from entities import Electron, Positron, Player, Enemy, Arrow, PlayerState
 
 # This'll tie everything together basically
 class Game:
@@ -28,7 +28,7 @@ class Game:
         self.enemy3 = Enemy(PLAYER_START_X + 500, PLAYER_START_Y - 150)
 
         # Arrow for direction
-        self.arrow = Arrow(PLAYER_START_X + 50, PLAYER_START_Y - 50, self.player.rect.centerx, self.player.rect.centery, 75)
+        self.arrow = Arrow(PLAYER_START_X + 50, PLAYER_START_Y - 50, self.player.rect.centerx, self.player.rect.centery, 180)
 
         self.player_group.add(self.player)
         self.enemy_group.add(self.enemy1, self.enemy2, self.enemy3)
@@ -39,7 +39,13 @@ class Game:
                 pygame.quit()
                 raise SystemExit
 
-        # Mouse position
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1: # Left click
+                    if self.player.state == PlayerState.AIMING:
+                        self.player.move(self.arrow.angle)
+
+
+        # Mouse position for arrow
         mouse_x, mouse_y = pygame.mouse.get_pos()
         self.arrow.mouse_pos = (mouse_x, mouse_y)
 
@@ -64,7 +70,8 @@ class Game:
         for enemy in self.enemy_group:
             enemy.draw(self.screen)
 
-        self.arrow.draw(self.screen)
+        if player.state == PlayerState.AIMING:
+            self.arrow.draw(self.screen)
 
     # Game loop
     def run(self):
@@ -77,6 +84,8 @@ class Game:
 
             pygame.display.flip()
             self.clock.tick(FPS)
+
+            print(self.player.state)
 
 if __name__ == "__main__":
     game = Game()

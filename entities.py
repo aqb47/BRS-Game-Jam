@@ -1,7 +1,15 @@
 import pygame
 import math
-from config import *
 import os
+from enum import Enum
+
+from config import *
+
+
+class PlayerState(Enum):
+    AIMING = 0
+    MOVING = 1
+
 
 # For a pointer arrow indicating the angle for movement
 class Arrow(pygame.sprite.Sprite):
@@ -13,14 +21,17 @@ class Arrow(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
 
         self.mouse_pos = pygame.math.Vector2(0, 0) # Position of mouse that will be continuously updated by Game()
-        self.player_pos = pygame.math.Vector2(reference_x, reference_y) # Position of Player that will be constant and changed upon its movement
+        self.player_pos = pygame.math.Vector2(reference_x, reference_y) # Position of Player that will be mostly constant and changed upon its movement
 
         self.reference_distance = self.player_pos.distance_to((init_x, init_y)) 
 
         self.angular_amplitude = math.radians(angular_amplitude) # Convert degree to radians
+        self.angle = -self.angular_amplitude # In radians
 
         self.rect.x = init_x
         self.rect.y = init_y
+
+        self.is_visible = True
 
     def draw(self, screen):
         screen.blit(self.image, self.rect)
@@ -33,7 +44,7 @@ class Arrow(pygame.sprite.Sprite):
         dx = self.mouse_pos[0] - self.player_pos[0]
         dy = self.mouse_pos[1] - self.player_pos[1]
 
-        # Get angle and limit it
+        # Get angles in radians and limit it
         angle = math.atan2(dy, dx)
         if angle > self.angular_amplitude: angle = self.angular_amplitude
         elif angle < -self.angular_amplitude: angle = -self.angular_amplitude
@@ -46,6 +57,7 @@ class Arrow(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
 
         self.rect.center = (new_x, new_y)
+        self.angle = -angle
 
 
 class Particle(pygame.sprite.Sprite):
@@ -75,6 +87,7 @@ class Particle(pygame.sprite.Sprite):
         return
 
     # Shifts position of the particle to mimic vibration on y-axis w.r.t center of rect
+    # TODO: Use a sine function here, it'd look better 
     def vibrate(self, limit):
         if pygame.time.get_ticks() - self.vibrate_time > VIBRATION_COOLDOWN:
             dy = 0
@@ -118,6 +131,27 @@ class Electron(Particle):
     def update(self):
         self.vibrate(VIBRATION_LIMIT)
 
+        # If a force is applied
+        dx = 0
+        dy = 0
+
+        # Calculate new velocity and acceleration due to friction
+        self.velocity += self.acceleration
+        self.acceleration -= FRICTION
+
+        # If friction acts long enough and velocity is less than zero, we will cap it to zero
+        if self.velocity <= 0:
+            self.velocity = 0
+            self.acceleration = 0
+            self.angle = 0
+
+        dx += self.velocity * math.cos(-self.angle)
+        dy += self.velocity * math.sin(-self.angle)
+
+        self.rect.x += dx
+        self.rect.y += dy
+
+
 class Positron(Particle):
     def __init__(self):
         super().__init__(charge = +1, mass = 1, vibration_velocity = ENEMY_VIBRATION_VELOCITY)
@@ -134,11 +168,32 @@ class Positron(Particle):
     def update(self):
         self.vibrate(VIBRATION_LIMIT)
 
+
 class Player(Electron):
     def __init__(self, init_x, init_y):
         super().__init__()
         self.rect.x = init_x
         self.rect.y = init_y
+        self.state = PlayerState.AIMING # Initially start off by aiming
+
+        self.angle = 0
+
+    def update_state(self, new_state):
+        if self.state != new_state:
+            self.state = new_state
+
+    # Changes acceleration and angle for electron
+    def move(self, angle):
+        self.update_state(PlayerState.MOVING)
+
+        # Apply acceleration at an angle
+        self.acceleration = INITIAL_ACCELERATION
+        self.angle = angle
+
+    def update(self):
+        super().update()
+        if self.velocity == 0 and self.acceleration == 0:
+            self.update_state(PlayerState.AIMING)
 
 class Enemy(Positron):
     def __init__(self, init_x, init_y):
