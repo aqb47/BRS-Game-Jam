@@ -3,7 +3,7 @@ from config import *
 import os
 
 class Particle(pygame.sprite.Sprite):
-    def __init__(self, charge, mass):
+    def __init__(self, charge, mass, vibration_velocity):
         super().__init__()
         self.charge = charge
         self.mass = mass
@@ -14,6 +14,11 @@ class Particle(pygame.sprite.Sprite):
         self.velocity = 0
         self.acceleration = 0
 
+        self.vibrate_time = pygame.time.get_ticks()
+        self.vibration_direction = 1 # This'll oscillate between 1 and -1. 1 = Moving downwards and -1 = Moving upwards
+        self.vibration_dy = 0
+        self.vibration_velocity = vibration_velocity
+
         self.image = None
         self.rect = None
 
@@ -23,10 +28,35 @@ class Particle(pygame.sprite.Sprite):
     def update(self):
         return
 
+    # Shifts position of the particle to mimic vibration on y-axis w.r.t center of rect
+    def vibrate(self, limit):
+        if pygame.time.get_ticks() - self.vibrate_time > VIBRATION_COOLDOWN:
+            dy = 0
+
+            # If moving downwards
+            if self.vibration_direction == 1:
+                # Less than limit, we keep going downward
+                if self.vibration_dy < limit:
+                    dy += self.vibration_velocity
+                # Reaching limit, set direction going upward
+                else:
+                    self.vibration_direction = -1
+                    self.vibration_dy = limit
+
+            if self.vibration_direction == -1:
+                if self.vibration_dy > 0:
+                    dy -= self.vibration_velocity
+                else:
+                    self.vibration_direction = 1
+                    self.vibration_dy = 0
+
+            self.vibration_dy += dy
+            self.rect.y += dy
+
 
 class Electron(Particle):
     def __init__(self):
-        super().__init__(charge = -1, mass = 1) # assuming electron has unit mass
+        super().__init__(charge = -1, mass = 1, vibration_velocity = PLAYER_VIBRATION_VELOCITY) # assuming electron has unit mass
 
         # placeholder sprite for now
         self.image = pygame.image.load(os.path.join(PARTICLES_DIR, "electron.png")).convert_alpha()
@@ -38,11 +68,11 @@ class Electron(Particle):
         screen.blit(self.image, self.rect)
 
     def update(self):
-        return
+        self.vibrate(VIBRATION_LIMIT)
 
 class Positron(Particle):
     def __init__(self):
-        super().__init__(charge = +1, mass = 1)
+        super().__init__(charge = +1, mass = 1, vibration_velocity = ENEMY_VIBRATION_VELOCITY)
 
         # placeholder sprite for now
         self.image = pygame.image.load(os.path.join(PARTICLES_DIR, "positron.png")).convert_alpha()
@@ -54,7 +84,7 @@ class Positron(Particle):
         screen.blit(self.image, self.rect)
 
     def update(self):
-        return
+        self.vibrate(VIBRATION_LIMIT)
 
 class Player(Electron):
     def __init__(self, init_x, init_y):

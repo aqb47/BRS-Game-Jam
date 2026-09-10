@@ -20,11 +20,14 @@ class Game:
         self.player_group = pygame.sprite.Group()
 
         self.player = Player(PLAYER_START_X, PLAYER_START_Y)
+
+        # Placeholders, we'll add automatic enemy generation later
         self.enemy1 = Enemy(PLAYER_START_X + 100, PLAYER_START_Y + 200)
         self.enemy2 = Enemy(PLAYER_START_X + 100, PLAYER_START_Y - 200)
+        self.enemy3 = Enemy(PLAYER_START_X + 500, PLAYER_START_Y - 150)
 
         self.player_group.add(self.player)
-        self.enemy_group.add(self.enemy1, self.enemy2)
+        self.enemy_group.add(self.enemy1, self.enemy2, self.enemy3)
 
     def handle_events(self):
         for event in pygame.event.get():
@@ -36,6 +39,9 @@ class Game:
     def update(self):
         for player in self.player_group:
             player.update()
+
+        for enemy in self.enemy_group:
+            enemy.update()
 
     # Draw them on the screen
     def draw(self):
