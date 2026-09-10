@@ -8,6 +8,7 @@ FPS = 60
 
 BG = (2, 24, 43) # DARK BLUE (02182B)
 
+SCALE = 3
 
 # Paths
 
@@ -19,4 +20,4 @@ PARTICLES_DIR = IMG_DIR / "particles"
 # Player
 
 PLAYER_START_X = 10
-PLAYER_START_Y = 10
+PLAYER_START_Y = SCREEN_HEIGHT // 2
