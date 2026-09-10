@@ -85,8 +85,6 @@ class Game:
             pygame.display.flip()
             self.clock.tick(FPS)
 
-            print(self.player.state)
-
 if __name__ == "__main__":
     game = Game()
     game.run()
