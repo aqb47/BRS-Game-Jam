@@ -17,6 +17,15 @@ IMG_DIR = BASE_DIR / "img"
 
 PARTICLES_DIR = IMG_DIR / "particles"
 
+# Font
+
+FONT_DIR = BASE_DIR / "fonts"
+SCORE_FONT = FONT_DIR / "PixelifySans-Regular.ttf"
+SCORE_FONT_SIZE = 50
+SCORE_POS = (700, 10)
+SCORE_COLOR = (255, 255, 255)
+
+
 # Player
 
 PLAYER_START_X = 10

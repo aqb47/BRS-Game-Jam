@@ -14,6 +14,9 @@ class Game:
 
         self.bg_color = BG
 
+        self.font = pygame.font.Font(SCORE_FONT, SCORE_FONT_SIZE)
+        self.score = 0
+
         self.particle_group = pygame.sprite.Group()
 
         self.enemy_group = pygame.sprite.Group()
@@ -33,6 +36,10 @@ class Game:
         self.player_group.add(self.player)
         self.enemy_group.add(self.enemy1, self.enemy2, self.enemy3)
 
+    def draw_score(self):
+        score_surface = self.font.render(str(self.score), False, SCORE_COLOR)
+        self.screen.blit(score_surface, SCORE_POS)
+
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -51,6 +58,9 @@ class Game:
 
     # Update entity states
     def update(self):
+        # basic scoring for now
+        self.score = self.player.rect.centerx
+
         for player in self.player_group:
             player.update()
 
@@ -63,6 +73,8 @@ class Game:
     def draw(self):
         # fill with background color
         self.screen.fill(self.bg_color)
+
+        self.draw_score()
 
         for player in self.player_group:
             player.draw(self.screen)
