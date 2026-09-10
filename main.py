@@ -2,6 +2,7 @@
 import pygame
 from config import *
 from entities import Electron, Positron, Player, Enemy, Arrow, PlayerState
+import random
 
 # This'll tie everything together basically
 class Game:
@@ -25,20 +26,23 @@ class Game:
         # Controllable electron player
         self.player = Player(PLAYER_START_X, PLAYER_START_Y)
 
-        # Placeholders, we'll add automatic enemy generation later
-        self.enemy1 = Enemy(PLAYER_START_X + 100, PLAYER_START_Y + 200)
-        self.enemy2 = Enemy(PLAYER_START_X + 100, PLAYER_START_Y - 200)
-        self.enemy3 = Enemy(PLAYER_START_X + 500, PLAYER_START_Y - 150)
+        # track when we spawned enemies last
+        self.last_enemy_spawn_time = 0
 
         # Arrow for direction
         self.arrow = Arrow(PLAYER_START_X + 50, PLAYER_START_Y - 50, self.player.rect.centerx, self.player.rect.centery, 180)
 
         self.player_group.add(self.player)
-        self.enemy_group.add(self.enemy1, self.enemy2, self.enemy3)
 
     def draw_score(self):
         score_surface = self.font.render(str(self.score), False, SCORE_COLOR)
         self.screen.blit(score_surface, SCORE_POS)
+
+    def spawn_random_enemies(self, count = 1):
+        # spawn enemies at random positions
+        for i in range(0, count):
+            enemy = Enemy(random.randint(0, SCREEN_WIDTH), random.randint(0, SCREEN_HEIGHT))
+            self.enemy_group.add(enemy)
 
     def handle_events(self):
         for event in pygame.event.get():
@@ -61,11 +65,22 @@ class Game:
         # basic scoring for now
         self.score = self.player.rect.centerx
 
+        # basic enemy spawning
+        # spawns enemies at random position after cooldown
+        if pygame.time.get_ticks() - self.last_enemy_spawn_time > ENEMY_SPAWN_COOLDOWN:
+            self.spawn_random_enemies()
+            self.last_enemy_spawn_time = pygame.time.get_ticks()
+
         for player in self.player_group:
             player.update()
 
         for enemy in self.enemy_group:
+            # accelerate in random directions for now
+            enemy.accelerate(random.randint(0, 360), random.randint(2, 8))
             enemy.update()
+            if enemy.lifetime > ENEMY_LIFETIME:
+                # destroy enemies after some delay
+                enemy.kill()
 
         self.arrow.update(self.player)
 

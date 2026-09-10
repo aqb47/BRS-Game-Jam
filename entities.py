@@ -71,6 +71,7 @@ class Particle(pygame.sprite.Sprite):
 
         self.velocity = 0
         self.acceleration = 0
+        self.friction = FRICTION
 
         self.vibrate_time = pygame.time.get_ticks()
         self.vibration_direction = 1 # This'll oscillate between 1 and -1. 1 = Moving downwards and -1 = Moving upwards
@@ -84,7 +85,27 @@ class Particle(pygame.sprite.Sprite):
         return
 
     def update(self):
-        return
+        self.vibrate(VIBRATION_LIMIT)
+
+        # If a force is applied
+        dx = 0
+        dy = 0
+
+        # Calculate new velocity and acceleration due to friction
+        self.velocity += self.acceleration
+        self.acceleration -= self.friction
+
+        # If friction acts long enough and velocity is less than zero, we will cap it to zero
+        if self.velocity <= 0:
+            self.velocity = 0
+            self.acceleration = 0
+            self.angle = 0
+
+        dx += self.velocity * math.cos(-self.angle)
+        dy += self.velocity * math.sin(-self.angle)
+
+        self.rect.x += dx
+        self.rect.y += dy
 
     # Shifts position of the particle to mimic vibration on y-axis w.r.t center of rect
     # TODO: Use a sine function here, it'd look better 
@@ -128,30 +149,6 @@ class Electron(Particle):
     def draw(self, screen : pygame.surface.Surface):
         screen.blit(self.image, self.rect)
 
-    def update(self):
-        self.vibrate(VIBRATION_LIMIT)
-
-        # If a force is applied
-        dx = 0
-        dy = 0
-
-        # Calculate new velocity and acceleration due to friction
-        self.velocity += self.acceleration
-        self.acceleration -= FRICTION
-
-        # If friction acts long enough and velocity is less than zero, we will cap it to zero
-        if self.velocity <= 0:
-            self.velocity = 0
-            self.acceleration = 0
-            self.angle = 0
-
-        dx += self.velocity * math.cos(-self.angle)
-        dy += self.velocity * math.sin(-self.angle)
-
-        self.rect.x += dx
-        self.rect.y += dy
-
-
 class Positron(Particle):
     def __init__(self):
         super().__init__(charge = +1, mass = 1, vibration_velocity = ENEMY_VIBRATION_VELOCITY)
@@ -161,12 +158,23 @@ class Positron(Particle):
         self.image = pygame.transform.scale(self.image, (int(SCALE * self.image.get_width()), int(SCALE * self.image.get_height())))
 
         self.rect = self.image.get_rect()
+        self.last_accelerate = 0
+
+        self.friction = 2
+
+    def accelerate(self, angle, acceleration):
+        # accelerate with cooldown
+        # used for random enemy movement
+        if pygame.time.get_ticks() - self.last_accelerate > 100:
+            self.angle = angle
+            self.acceleration = acceleration
+            self.last_accelerate = pygame.time.get_ticks()
 
     def draw(self, screen):
         screen.blit(self.image, self.rect)
 
     def update(self):
-        self.vibrate(VIBRATION_LIMIT)
+        super().update()
 
 
 class Player(Electron):
@@ -200,3 +208,11 @@ class Enemy(Positron):
         super().__init__()
         self.rect.x = init_x
         self.rect.y = init_y
+
+        self.spawn_time = pygame.time.get_ticks()
+        self.lifetime = 0
+
+    def update(self):
+        super().update()
+        # track lifetime of enemies
+        self.lifetime += pygame.time.get_ticks() - self.spawn_time
