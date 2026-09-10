@@ -1,6 +1,52 @@
 import pygame
+import math
 from config import *
 import os
+
+# For a pointer arrow indicating the angle for movement
+class Arrow(pygame.sprite.Sprite):
+    def __init__(self, init_x, init_y, reference_x, reference_y, angular_amplitude):
+        self.image = pygame.image.load(os.path.join(IMG_DIR, "arrow.png")).convert_alpha()
+        self.image = pygame.transform.scale(self.image, (int(ARROW_SCALE * self.image.get_width()), int(ARROW_SCALE * self.image.get_height())))
+        self.original_image = self.image
+
+        self.rect = self.image.get_rect()
+
+        self.mouse_pos = pygame.math.Vector2(0, 0) # Position of mouse that will be continuously updated by Game()
+        self.player_pos = pygame.math.Vector2(reference_x, reference_y) # Position of Player that will be constant and changed upon its movement
+
+        self.reference_distance = self.player_pos.distance_to((init_x, init_y)) 
+
+        self.angular_amplitude = math.radians(angular_amplitude) # Convert degree to radians
+
+        self.rect.x = init_x
+        self.rect.y = init_y
+
+    def draw(self, screen):
+        screen.blit(self.image, self.rect)
+
+    def update(self, player):
+        self.player_pos[0] = player.rect.centerx
+        self.player_pos[1] = player.rect.centery
+
+        # Calculate angle between reference point (Player) and mouse position w.r.t horizontal
+        dx = self.mouse_pos[0] - self.player_pos[0]
+        dy = self.mouse_pos[1] - self.player_pos[1]
+
+        # Get angle and limit it
+        angle = math.atan2(dy, dx)
+        if angle > self.angular_amplitude: angle = self.angular_amplitude
+        elif angle < -self.angular_amplitude: angle = -self.angular_amplitude
+
+        new_x = self.reference_distance * math.cos(angle) + self.player_pos.x # rcos(theta) + x0
+        new_y = self.reference_distance * math.sin(angle) + self.player_pos.y # rsin(theta) + y0
+
+        # Rotate image
+        self.image = pygame.transform.rotate(self.original_image, -math.degrees(angle))
+        self.rect = self.image.get_rect()
+
+        self.rect.center = (new_x, new_y)
+
 
 class Particle(pygame.sprite.Sprite):
     def __init__(self, charge, mass, vibration_velocity):
@@ -52,6 +98,8 @@ class Particle(pygame.sprite.Sprite):
 
             self.vibration_dy += dy
             self.rect.y += dy
+
+            self.vibrate_time = pygame.time.get_ticks()
 
 
 class Electron(Particle):

@@ -1,7 +1,7 @@
 # Main script
 import pygame
 from config import *
-from entities import Electron, Positron, Player, Enemy
+from entities import Electron, Positron, Player, Enemy, Arrow
 
 # This'll tie everything together basically
 class Game:
@@ -19,12 +19,16 @@ class Game:
         self.enemy_group = pygame.sprite.Group()
         self.player_group = pygame.sprite.Group()
 
+        # Controllable electron player
         self.player = Player(PLAYER_START_X, PLAYER_START_Y)
 
         # Placeholders, we'll add automatic enemy generation later
         self.enemy1 = Enemy(PLAYER_START_X + 100, PLAYER_START_Y + 200)
         self.enemy2 = Enemy(PLAYER_START_X + 100, PLAYER_START_Y - 200)
         self.enemy3 = Enemy(PLAYER_START_X + 500, PLAYER_START_Y - 150)
+
+        # Arrow for direction
+        self.arrow = Arrow(PLAYER_START_X + 50, PLAYER_START_Y - 50, self.player.rect.centerx, self.player.rect.centery, 75)
 
         self.player_group.add(self.player)
         self.enemy_group.add(self.enemy1, self.enemy2, self.enemy3)
@@ -35,6 +39,10 @@ class Game:
                 pygame.quit()
                 raise SystemExit
 
+        # Mouse position
+        mouse_x, mouse_y = pygame.mouse.get_pos()
+        self.arrow.mouse_pos = (mouse_x, mouse_y)
+
     # Update entity states
     def update(self):
         for player in self.player_group:
@@ -42,6 +50,8 @@ class Game:
 
         for enemy in self.enemy_group:
             enemy.update()
+
+        self.arrow.update(self.player)
 
     # Draw them on the screen
     def draw(self):
@@ -54,6 +64,7 @@ class Game:
         for enemy in self.enemy_group:
             enemy.draw(self.screen)
 
+        self.arrow.draw(self.screen)
 
     # Game loop
     def run(self):
