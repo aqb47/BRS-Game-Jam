@@ -1,16 +1,17 @@
 # Main script
+import os
 import pygame
+import random
+
 from config import *
 from entities import Electron, Positron, Player, Enemy, Arrow, PlayerState
-import random
-import os
 
 # All sprites should go here to be moved when the camera moves
 class CameraGroup(pygame.sprite.Group):
     def __init__(self, background):
         super().__init__()
 
-        self.offset = pygame.math.Vector2()
+        self.offset = pygame.math.Vector2(0, 0)
         self.background = background
 
         self.screen_width = SCREEN_WIDTH
@@ -18,12 +19,22 @@ class CameraGroup(pygame.sprite.Group):
 
     # Draw all sprites on screen w.r.t player
     def camera_draw(self, screen, player: Player):
-        # Draw background
-        screen.blit(self.background, self.background.get_rect().topleft - self.offset)
-
+        # Get offset
         self.offset.x = player.rect.x - self.screen_width / 2
         self.offset.y = player.rect.y - self.screen_height / 2
 
+        # Draw background
+        bg_width = self.background.get_width()
+        bg_height = self.background.get_height()
+
+        start_x = int(-self.offset.x % bg_width - bg_width)
+        start_y = int(-self.offset.y % bg_height - bg_height)
+
+        for x in range(start_x, self.screen_width, bg_width):
+            for y in range(start_y, self.screen_height, bg_height):
+                screen.blit(self.background, (x, y))
+
+        # Draw sprites
         for sprite in self.sprites():
             # If a sprite is currently invisible
             if hasattr(sprite, "is_visible") and not sprite.is_visible: continue
