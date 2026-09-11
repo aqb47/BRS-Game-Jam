@@ -14,6 +14,8 @@ class PlayerState(Enum):
 # For a pointer arrow indicating the angle for movement
 class Arrow(pygame.sprite.Sprite):
     def __init__(self, init_x, init_y, reference_x, reference_y, angular_amplitude):
+        super().__init__()
+
         self.image = pygame.image.load(os.path.join(IMG_DIR, "arrow.png")).convert_alpha()
         self.image = pygame.transform.scale(self.image, (int(ARROW_SCALE * self.image.get_width()), int(ARROW_SCALE * self.image.get_height())))
         self.original_image = self.image
@@ -36,13 +38,16 @@ class Arrow(pygame.sprite.Sprite):
     def draw(self, screen):
         screen.blit(self.image, self.rect)
 
-    def update(self, player):
+    def update(self, player, camera_offset=(0, 0)):
         self.player_pos[0] = player.rect.centerx
         self.player_pos[1] = player.rect.centery
 
+        # Convert the screen-space mouse position into world coordinates.
+        mouse_world_pos = pygame.math.Vector2(self.mouse_pos) + camera_offset
+
         # Calculate angle between reference point (Player) and mouse position w.r.t horizontal
-        dx = self.mouse_pos[0] - self.player_pos[0]
-        dy = self.mouse_pos[1] - self.player_pos[1]
+        dx = mouse_world_pos.x - self.player_pos.x
+        dy = mouse_world_pos.y - self.player_pos.y
 
         # Get angles in radians and limit it
         angle = math.atan2(dy, dx)
@@ -80,6 +85,8 @@ class Particle(pygame.sprite.Sprite):
         self.vibration_velocity = vibration_velocity
 
         self.applied_friction = 0
+
+        self.is_visible = True
 
         self.image = None
         self.rect = None
@@ -119,7 +126,6 @@ class Particle(pygame.sprite.Sprite):
         if distance <= MINIMUM_ATTRACTION_DISTANCE or distance >= MAXIMUM_ATTRACTION_DISTANCE:
             return
 
-        # displacement = min(ATTRACTION_SPEED, (distance - MINIMUM_ATTRACTION_DISTANCE) / 2)
         # Increment by unit vector * speed
         self.attraction_displacement += offset.normalize() * ATTRACTION_SPEED
 
