@@ -1,10 +1,25 @@
 # Main script
-import os
 import pygame
+
+import os
 import random
+import csv
 
 from config import *
 from entities import Electron, Positron, Player, Enemy, Arrow, PlayerState
+
+
+class EnemyTileMap():
+    map = [[]]
+
+    def __init__(self, file_name):
+        self.file_name = file_name
+        self.tile_size = ENEMY_TILE_SIZE
+
+    def load_csv(self):
+        with open(os.path.join(DATA_DIR, self.file_name)) as data:
+            EnemyTileMap.map = list(csv.reader(data))
+
 
 # All sprites should go here to be moved when the camera moves
 class CameraGroup(pygame.sprite.Group):
@@ -77,6 +92,11 @@ class Game:
         # Arrow for direction
         self.arrow = Arrow(PLAYER_START_X + 50, PLAYER_START_Y - 50, self.player.rect.centerx, self.player.rect.centery, 180)
 
+        # Tile map to load enemies
+        self.tilemap = EnemyTileMap("example.csv")
+        self.tilemap.load_csv()
+        self.spawn_enemies()
+
         self.player_group.add(self.player)
 
         self.camera_group.add(self.player)
@@ -86,13 +106,15 @@ class Game:
         score_surface = self.font.render(str(self.score), False, SCORE_COLOR)
         self.screen.blit(score_surface, SCORE_POS)
 
-    def spawn_random_enemies(self, count = 1):
-        # spawn enemies at random positions
-        for i in range(0, count):
-            enemy = Enemy(random.randint(0, SCREEN_WIDTH), random.randint(0, SCREEN_HEIGHT))
+    def spawn_enemies(self):
+        for row_idx, row in enumerate(self.tilemap.map):
+            for col_idx, value in enumerate(row):
+                # Spawn enemy
+                if value == "0":
+                    new_enemy = Enemy(self.tilemap.tile_size * col_idx, self.tilemap.tile_size * row_idx)
 
-            self.enemy_group.add(enemy)
-            self.camera_group.add(enemy)
+                    self.enemy_group.add(new_enemy)
+                    self.camera_group.add(new_enemy)
 
     def handle_events(self):
         for event in pygame.event.get():
@@ -121,12 +143,6 @@ class Game:
         # basic scoring for now
         self.score = self.player.rect.centerx
 
-        # basic enemy spawning
-        # spawns enemies at random position after cooldown
-        if pygame.time.get_ticks() - self.last_enemy_spawn_time > ENEMY_SPAWN_COOLDOWN:
-            self.spawn_random_enemies()
-            self.last_enemy_spawn_time = pygame.time.get_ticks()
-
         # Attraction forces
         for electron in self.player_group:
             for positron in self.enemy_group:
@@ -137,12 +153,7 @@ class Game:
             player.update()
 
         for enemy in self.enemy_group:
-            # accelerate in random directions for now
-            enemy.accelerate(random.randint(0, 360), random.randint(2, 8))
             enemy.update()
-            if enemy.lifetime > ENEMY_LIFETIME:
-                # destroy enemies after some delay
-                enemy.kill()
 
         # Update arrow angle and visibility
         self.arrow.update(self.player, self.camera_group.offset)

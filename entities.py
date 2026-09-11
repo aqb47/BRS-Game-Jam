@@ -262,6 +262,7 @@ class Player(Electron):
             self.update_state(PlayerState.AIMING)
             self.applied_friction = 0
 
+
 class Enemy(Positron):
     def __init__(self, init_x, init_y):
         super().__init__()

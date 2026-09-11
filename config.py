@@ -13,7 +13,7 @@ SCALE = 3
 # Paths
 BASE_DIR = Path(__file__).resolve().parent
 IMG_DIR = BASE_DIR / "img"
-
+DATA_DIR = BASE_DIR / "data"
 PARTICLES_DIR = IMG_DIR / "particles"
 
 # Audio
@@ -37,9 +37,9 @@ FRICTION = 1
 DISPLACEMENT_SCALE = 0.25
 
 # Enemy
-
 ENEMY_SPAWN_COOLDOWN = 200
 ENEMY_LIFETIME = 10000
+ENEMY_TILE_SIZE = 32
 
 # Particles
 VIBRATION_COOLDOWN = 50
