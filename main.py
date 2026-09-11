@@ -46,14 +46,18 @@ class CameraGroup(pygame.sprite.Group):
 class Game:
     def __init__(self):
         pygame.init()
+
         pygame.display.set_caption("TODO")
 
+        # Clock for limiting FPS and screen to work with
         self.clock = pygame.Clock()
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 
+        # Background
         self.bg_color = BG
         self.background = pygame.image.load(os.path.join(IMG_DIR, "sample_background.png")).convert_alpha()
 
+        # Score stuff
         self.font = pygame.font.Font(SCORE_FONT, SCORE_FONT_SIZE)
         self.score = 0
 
@@ -141,8 +145,6 @@ class Game:
                 enemy.kill()
 
         # Update arrow angle and visibility
-        self.camera_group.offset.x = self.player.rect.x - self.camera_group.screen_width / 2
-        self.camera_group.offset.y = self.player.rect.y - self.camera_group.screen_height / 2
         self.arrow.update(self.player, self.camera_group.offset)
         
         if self.player.state == PlayerState.AIMING:
