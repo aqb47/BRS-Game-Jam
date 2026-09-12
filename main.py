@@ -10,15 +10,14 @@ from entities import Electron, Positron, Player, Enemy, Arrow, PlayerState
 
 
 class EnemyTileMap():
-    map = [[]]
-
     def __init__(self, file_name):
         self.file_name = file_name
         self.tile_size = ENEMY_TILE_SIZE
+        self.map = []
 
     def load_csv(self):
-        with open(os.path.join(DATA_DIR, self.file_name)) as data:
-            EnemyTileMap.map = list(csv.reader(data))
+        with open(os.path.join(DATA_DIR, self.file_name), newline="") as data:
+            self.map = list(csv.reader(data))
 
 
 # All sprites should go here to be moved when the camera moves
@@ -95,23 +94,43 @@ class Game:
         # Tile map to load enemies
         self.tilemap = EnemyTileMap("example.csv")
         self.tilemap.load_csv()
-        self.spawn_enemies()
+
+        self.chunk_size = ((self.tilemap.tile_size + TILE_PADDING) * len(self.tilemap.map[0]), (self.tilemap.tile_size + TILE_PADDING) * len(self.tilemap.map))
+        self.chunk_y = self.chunk_size[1]
+        self.loaded_chunk_columns = set()
+        self.next_chunk_column = 0
+        self.spawn_chunks(-1, 3)
 
         self.player_group.add(self.player)
 
         self.camera_group.add(self.player)
         self.camera_group.add(self.arrow)
 
+    def spawn_chunks(self, first_column, count):
+        for column in range(first_column, first_column + count):
+            if column in self.loaded_chunk_columns:
+                continue
+
+            self.spawn_enemy_chunk(column)
+            self.loaded_chunk_columns.add(column)
+
+        self.next_chunk_column = max(self.next_chunk_column, first_column + count)
+
+    def draw_position(self):
+        pos_surface = self.font.render(f"({self.player.rect.x}, {self.player.rect.y})", False, SCORE_COLOR)
+        self.screen.blit(pos_surface, COORDINATE_POS)
+
     def draw_score(self):
         score_surface = self.font.render(str(self.score), False, SCORE_COLOR)
         self.screen.blit(score_surface, SCORE_POS)
 
-    def spawn_enemies(self):
+    def spawn_enemy_chunk(self, column):
+        offset = pygame.math.Vector2(column * self.chunk_size[0], self.chunk_y)
         for row_idx, row in enumerate(self.tilemap.map):
             for col_idx, value in enumerate(row):
                 # Spawn enemy
                 if value == "0":
-                    new_enemy = Enemy((self.tilemap.tile_size + TILE_PADDING) * col_idx, (self.tilemap.tile_size + TILE_PADDING) * row_idx)
+                    new_enemy = Enemy((self.tilemap.tile_size + TILE_PADDING) * col_idx + offset.x, (self.tilemap.tile_size + TILE_PADDING) * row_idx + offset.y)
 
                     self.enemy_group.add(new_enemy)
                     self.camera_group.add(new_enemy)
@@ -163,6 +182,16 @@ class Game:
         else:
             self.arrow.is_visible = False
 
+        # Keep a few chunks ahead of the player and remove chunks well behind it.
+        load_threshold = (self.next_chunk_column - 1) * self.chunk_size[0]
+        if self.player.rect.right >= load_threshold:
+            self.spawn_chunks(self.next_chunk_column, 3)
+
+        cleanup_threshold = self.player.rect.left - self.chunk_size[0]
+        for enemy in self.enemy_group:
+            if enemy.rect.right < cleanup_threshold:
+                enemy.kill()
+
     # Draw them on the screen
     def draw(self):
         # fill with background color
@@ -172,6 +201,7 @@ class Game:
         self.camera_group.camera_draw(self.screen, self.player)
 
         self.draw_score()
+        self.draw_position()
 
     # Game loop
     def run(self):
