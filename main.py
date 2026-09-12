@@ -111,7 +111,7 @@ class Game:
             for col_idx, value in enumerate(row):
                 # Spawn enemy
                 if value == "0":
-                    new_enemy = Enemy(self.tilemap.tile_size * col_idx, self.tilemap.tile_size * row_idx)
+                    new_enemy = Enemy((self.tilemap.tile_size + TILE_PADDING) * col_idx, (self.tilemap.tile_size + TILE_PADDING) * row_idx)
 
                     self.enemy_group.add(new_enemy)
                     self.camera_group.add(new_enemy)
