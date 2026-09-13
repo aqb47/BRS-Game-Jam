@@ -60,7 +60,6 @@ class CameraGroup(pygame.sprite.Group):
 class Game:
     def __init__(self):
         pygame.init()
-
         pygame.display.set_caption("TODO")
 
         # Clock for limiting FPS and screen to work with
@@ -84,9 +83,8 @@ class Game:
 
         # Controllable electron player
         self.player = Player(PLAYER_START_X, PLAYER_START_Y)
-
-        # track when we spawned enemies last
-        self.last_enemy_spawn_time = 0
+        self.player_reversing = False
+        self.reverse_enemy = None
 
         # Arrow for direction
         self.arrow = Arrow(PLAYER_START_X + 50, PLAYER_START_Y - 50, self.player.rect.centerx, self.player.rect.centery, 180)
@@ -95,6 +93,7 @@ class Game:
         self.tilemap = EnemyTileMap("example.csv")
         self.tilemap.load_csv()
 
+        # Chunk related attributes
         self.chunk_size = ((self.tilemap.tile_size + TILE_PADDING) * len(self.tilemap.map[0]), (self.tilemap.tile_size + TILE_PADDING) * len(self.tilemap.map))
         self.chunk_y = self.chunk_size[1]
         self.loaded_chunk_columns = set()
@@ -114,7 +113,7 @@ class Game:
             self.spawn_enemy_chunk(column)
             self.loaded_chunk_columns.add(column)
 
-        self.next_chunk_column = max(self.next_chunk_column, first_column + count)
+        if first_column + count > self.next_chunk_column: self.next_chunk_column = first_column + count
 
     def draw_position(self):
         pos_surface = self.font.render(f"({self.player.rect.x}, {self.player.rect.y})", False, SCORE_COLOR)
@@ -159,6 +158,28 @@ class Game:
 
     # Update entity states
     def update(self):
+        if self.player_reversing:
+            current_pos = pygame.math.Vector2(self.player.rect.topleft)
+            target_pos = self.player.last_pos
+            reverse_offset = target_pos - current_pos
+
+            if reverse_offset.length() <= REVERSE_VELOCITY:
+                self.player.rect.topleft = (round(target_pos.x), round(target_pos.y))
+                self.player_reversing = False
+
+                self.player.velocity = 0
+                self.player.acceleration = 0
+                self.player.angle = 0
+
+                self.player.update_state(PlayerState.AIMING)
+            else:
+                self.player.rect.topleft = tuple(
+                    round(value) for value in current_pos + reverse_offset.normalize() * REVERSE_VELOCITY
+                )
+
+            # The reverse animation owns this frame; defer all other updates.
+            return
+
         # basic scoring for now
         self.score = self.player.rect.centerx
 
@@ -182,21 +203,31 @@ class Game:
         else:
             self.arrow.is_visible = False
 
-        # Keep a few chunks ahead of the player and remove chunks well behind it.
+        # For keeping a few chunks ahead of the player and removing chunks well behind it.
         load_threshold = (self.next_chunk_column - 1) * self.chunk_size[0]
         if self.player.rect.right >= load_threshold:
             self.spawn_chunks(self.next_chunk_column, 3)
 
         cleanup_threshold = self.player.rect.left - self.chunk_size[0]
+
         for enemy in self.enemy_group:
+            # Kill enemy far behind
             if enemy.rect.right < cleanup_threshold:
                 enemy.kill()
+            # If enemy is close check collision
+            else:
+                collision = self.player.hitbox_rect.colliderect(enemy.hitbox_rect)
+                if enemy is self.reverse_enemy:
+                    if not collision:
+                        self.reverse_enemy = None
+                    continue
+
+                if collision:
+                    self.reverse_enemy = enemy
+                    self.player_reversing = True
 
     # Draw them on the screen
     def draw(self):
-        # fill with background color
-        self.screen.fill(self.bg_color)
-
         # Draw sprites and background
         self.camera_group.camera_draw(self.screen, self.player)
 

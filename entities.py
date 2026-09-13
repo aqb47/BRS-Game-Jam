@@ -90,9 +90,15 @@ class Particle(pygame.sprite.Sprite):
 
         self.image = None
         self.rect = None
+        self.hitbox_rect = None
 
     def draw(self):
         return
+
+    def update_hitbox(self):
+        if self.hitbox_rect is None:
+            self.hitbox_rect = self.rect.inflate(-self.rect.width // 2, -self.rect.height // 2)
+        self.hitbox_rect.center = self.rect.center
 
     def update(self):
         self.vibrate(VIBRATION_LIMIT)
@@ -126,7 +132,7 @@ class Particle(pygame.sprite.Sprite):
         if distance <= MINIMUM_ATTRACTION_DISTANCE or distance >= MAXIMUM_ATTRACTION_DISTANCE:
             return
 
-        # Increment by unit vector * speed
+        # Increment by unit vector * speed for attraction
         self.attraction_displacement += offset.normalize() * ATTRACTION_SPEED
 
     def update_attraction(self):
@@ -173,6 +179,7 @@ class Electron(Particle):
         self.image = pygame.transform.scale(self.image, (int(SCALE * self.image.get_width()), int(SCALE * self.image.get_height())))
 
         self.rect = self.image.get_rect()
+        self.update_hitbox()
 
     def draw(self, screen : pygame.surface.Surface):
         screen.blit(self.image, self.rect)
@@ -200,6 +207,7 @@ class Electron(Particle):
         self.rect.x += DISPLACEMENT_SCALE * dx
         self.rect.y += DISPLACEMENT_SCALE * dy
         self.update_attraction()
+        self.update_hitbox()
 
 
 class Positron(Particle):
@@ -211,9 +219,7 @@ class Positron(Particle):
         self.image = pygame.transform.scale(self.image, (int(SCALE * self.image.get_width()), int(SCALE * self.image.get_height())))
 
         self.rect = self.image.get_rect()
-        self.last_accelerate = 0
-
-        self.friction = 2
+        self.update_hitbox()
 
     def accelerate(self, angle, acceleration):
         # accelerate with cooldown
@@ -230,6 +236,7 @@ class Positron(Particle):
         super().update()
         self.vibrate(VIBRATION_LIMIT)
         self.update_attraction()
+        self.update_hitbox()
 
 
 class Player(Electron):
@@ -239,6 +246,8 @@ class Player(Electron):
         self.rect.y = init_y
         self.state = PlayerState.AIMING # Initially start off by aiming
 
+        self.last_pos = pygame.math.Vector2(self.rect.x, self.rect.y) # For reversing during a collision
+
         self.angle = 0
 
     def update_state(self, new_state):
@@ -246,11 +255,15 @@ class Player(Electron):
             self.state = new_state
 
     # Changes acceleration and angle for electron
-    def move(self, angle):
+    def move(self, angle, initial_acceleration = INITIAL_ACCELERATION):
         self.update_state(PlayerState.MOVING)
 
+        if abs(self.last_pos.x - self.rect.x) >= 5 or abs(self.last_pos.y - self.rect.y) >= 5:
+            self.last_pos.x = self.rect.x
+            self.last_pos.y = self.rect.y
+
         # Apply acceleration at an angle
-        self.acceleration = INITIAL_ACCELERATION
+        self.acceleration = initial_acceleration
         self.angle = angle
 
     def apply_friction(self):
@@ -268,11 +281,3 @@ class Enemy(Positron):
         super().__init__()
         self.rect.x = init_x
         self.rect.y = init_y
-
-        self.spawn_time = pygame.time.get_ticks()
-        self.lifetime = 0
-
-    def update(self):
-        super().update()
-        # track lifetime of enemies
-        self.lifetime += pygame.time.get_ticks() - self.spawn_time
