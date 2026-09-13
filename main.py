@@ -31,6 +31,11 @@ class CameraGroup(pygame.sprite.Group):
         self.screen_width = SCREEN_WIDTH
         self.screen_height = SCREEN_HEIGHT
 
+        self.screenshake = 0
+
+    def shake(self, frames):
+        self.screenshake = frames
+
     # Draw all sprites on screen w.r.t player
     def camera_draw(self, screen, player: Player):
         # Get offset
@@ -40,6 +45,17 @@ class CameraGroup(pygame.sprite.Group):
         # Draw background
         bg_width = self.background.get_width()
         bg_height = self.background.get_height()
+
+        rand_x = 0
+        rand_y = 0
+
+        if self.screenshake:
+            rand_x = random.randint(-SCREEN_SHAKE_MAGNITUDE, SCREEN_SHAKE_MAGNITUDE)
+            rand_y = random.randint(-SCREEN_SHAKE_MAGNITUDE, SCREEN_SHAKE_MAGNITUDE)
+            self.screenshake -= 1
+
+        self.offset.x += rand_x
+        self.offset.y += rand_y
 
         start_x = int(-self.offset.x % bg_width - bg_width)
         start_y = int(-self.offset.y % bg_height - bg_height)
@@ -66,7 +82,7 @@ class Game:
         self.clock = pygame.Clock()
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 
-        # Background
+        # Background and screen
         self.bg_color = BG
         self.background = pygame.image.load(os.path.join(IMG_DIR, "sample_background.png")).convert_alpha()
 
@@ -176,6 +192,8 @@ class Game:
                 self.player.rect.topleft = tuple(
                     round(value) for value in current_pos + reverse_offset.normalize() * REVERSE_VELOCITY
                 )
+
+            self.camera_group.screenshake += 1
 
             # The reverse animation owns this frame; defer all other updates.
             return
