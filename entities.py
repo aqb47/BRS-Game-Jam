@@ -5,7 +5,6 @@ from enum import Enum
 
 from config import *
 
-
 class PlayerState(Enum):
     AIMING = 0
     MOVING = 1
@@ -73,6 +72,7 @@ class Particle(pygame.sprite.Sprite):
 
         self.position = 0
         self.angle = 0
+        self.target_angle = self.angle
 
         self.velocity = 0
         self.acceleration = 0
@@ -91,6 +91,7 @@ class Particle(pygame.sprite.Sprite):
         self.image = None
         self.rect = None
         self.hitbox_rect = None
+        self.original_image = None
 
     def draw(self):
         return
@@ -109,19 +110,22 @@ class Particle(pygame.sprite.Sprite):
 
         # Calculate new velocity and acceleration due to friction
         self.velocity += self.acceleration
-        self.acceleration -= self.friction
+        self.acceleration -= self.friction + self.applied_friction
 
         # If friction acts long enough and velocity is less than zero, we will cap it to zero
         if self.velocity <= 0:
             self.velocity = 0
             self.acceleration = 0
-            self.angle = 0
+            # self.angle = 0
 
-        dx += self.velocity * math.cos(-self.angle)
-        dy += self.velocity * math.sin(-self.angle)
+        dx += self.velocity * math.cos(-self.target_angle)
+        dy += self.velocity * math.sin(-self.target_angle)
 
-        self.rect.x += dx
-        self.rect.y += dy
+        self.rect.x += DISPLACEMENT_SCALE * dx
+        self.rect.y += DISPLACEMENT_SCALE * dy
+
+        self.update_hitbox()
+        self.update_attraction()
 
     def apply_attraction(self, other):
         # Get distance between two particles
@@ -178,6 +182,8 @@ class Electron(Particle):
         self.image = pygame.image.load(os.path.join(PARTICLES_DIR, "electron.png")).convert_alpha()
         self.image = pygame.transform.scale(self.image, (int(SCALE * self.image.get_width()), int(SCALE * self.image.get_height())))
 
+        self.original_image = self.image
+
         self.rect = self.image.get_rect()
         self.update_hitbox()
 
@@ -185,29 +191,7 @@ class Electron(Particle):
         screen.blit(self.image, self.rect)
 
     def update(self):
-        self.vibrate(VIBRATION_LIMIT)
-
-        # If a force is applied
-        dx = 0
-        dy = 0
-
-        # Calculate new velocity and acceleration due to friction
-        self.velocity += self.acceleration
-        self.acceleration -= FRICTION + self.applied_friction
-
-        # If friction acts long enough and velocity is less than zero, we will cap it to zero
-        if self.velocity <= 0:
-            self.velocity = 0
-            self.acceleration = 0
-            self.angle = 0
-
-        dx += self.velocity * math.cos(-self.angle)
-        dy += self.velocity * math.sin(-self.angle)
-
-        self.rect.x += DISPLACEMENT_SCALE * dx
-        self.rect.y += DISPLACEMENT_SCALE * dy
-        self.update_attraction()
-        self.update_hitbox()
+        super().update()
 
 
 class Positron(Particle):
@@ -218,25 +202,16 @@ class Positron(Particle):
         self.image = pygame.image.load(os.path.join(PARTICLES_DIR, "positron.png")).convert_alpha()
         self.image = pygame.transform.scale(self.image, (int(SCALE * self.image.get_width()), int(SCALE * self.image.get_height())))
 
+        self.original_image = self.image
+
         self.rect = self.image.get_rect()
         self.update_hitbox()
-
-    def accelerate(self, angle, acceleration):
-        # accelerate with cooldown
-        # used for random enemy movement
-        if pygame.time.get_ticks() - self.last_accelerate > 100:
-            self.angle = angle
-            self.acceleration = acceleration
-            self.last_accelerate = pygame.time.get_ticks()
 
     def draw(self, screen):
         screen.blit(self.image, self.rect)
 
     def update(self):
         super().update()
-        self.vibrate(VIBRATION_LIMIT)
-        self.update_attraction()
-        self.update_hitbox()
 
 
 class Player(Electron):
@@ -248,8 +223,6 @@ class Player(Electron):
 
         self.last_pos = pygame.math.Vector2(self.rect.x, self.rect.y) # For reversing during a collision
 
-        self.angle = 0
-
     def update_state(self, new_state):
         if self.state != new_state:
             self.state = new_state
@@ -257,6 +230,7 @@ class Player(Electron):
     # Changes acceleration and angle for electron
     def move(self, angle, initial_acceleration = INITIAL_ACCELERATION):
         self.update_state(PlayerState.MOVING)
+        self.target_angle = angle
 
         if abs(self.last_pos.x - self.rect.x) >= 5 or abs(self.last_pos.y - self.rect.y) >= 5:
             self.last_pos.x = self.rect.x
@@ -264,7 +238,15 @@ class Player(Electron):
 
         # Apply acceleration at an angle
         self.acceleration = initial_acceleration
-        self.angle = angle
+        
+    def rotate_image(self, angle):
+        x = self.rect.centerx
+        y = self.rect.centery
+
+        self.image = pygame.transform.rotate(self.original_image, -math.degrees(angle))
+                
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
 
     def apply_friction(self):
         self.applied_friction += 0.75
@@ -274,6 +256,18 @@ class Player(Electron):
         if self.velocity == 0 and self.acceleration == 0:
             self.update_state(PlayerState.AIMING)
             self.applied_friction = 0
+
+        # Wrap angle difference between +pi/-pi
+        difference = (self.target_angle - self.angle + math.pi) % (2 * math.pi) - math.pi
+
+        if abs(difference) > MIN_ROTATION:
+            rotation_angle = max(-ELECTRON_ROTATION, min(ELECTRON_ROTATION, difference))
+
+            self.angle += rotation_angle
+            self.rotate_image(self.angle)
+
+        else:
+            self.angle = self.target_angle
 
 
 class Enemy(Positron):

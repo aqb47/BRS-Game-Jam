@@ -217,6 +217,8 @@ class Game:
             # If enemy is close check collision
             else:
                 collision = self.player.hitbox_rect.colliderect(enemy.hitbox_rect)
+
+                # So we don't get into a loop of running into the same enemy
                 if enemy is self.reverse_enemy:
                     if not collision:
                         self.reverse_enemy = None

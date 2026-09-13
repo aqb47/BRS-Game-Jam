@@ -1,5 +1,6 @@
 # Game variables, config stuff, data for adjusting things will go here
 from pathlib import Path
+import math
 
 SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = int(0.5 * SCREEN_WIDTH)
@@ -36,12 +37,15 @@ ENEMY_TILE_SIZE = 32
 REVERSE_VELOCITY = 5
 
 PLAYER_START_X = 0
-PLAYER_START_Y = 2000
+PLAYER_START_Y = 1700
 
 INITIAL_ACCELERATION = 15
 FRICTION = 1
 
 DISPLACEMENT_SCALE = 0.25
+
+ELECTRON_ROTATION = math.radians(3)
+MIN_ROTATION = 0.0001
 
 # Particles
 VIBRATION_COOLDOWN = 50
