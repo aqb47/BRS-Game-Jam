@@ -11,9 +11,11 @@ class HealthBar(pygame.sprite.Sprite):
     def __init__(self, init_x, init_y):
         super().__init__()
 
-        # TODO: Put a sprite here
-        self.image = pygame.Surface((32, 32)).convert_alpha()
-        pygame.draw.circle(self.image, (0, 0, 255), (self.image.get_width() / 2, self.image.get_height() / 2), self.image.get_width() / 2)
+        # self.image = pygame.Surface((32, 32)).convert_alpha()
+        # pygame.draw.circle(self.image, (0, 0, 255), (self.image.get_width() / 2, self.image.get_height() / 2), self.image.get_width() / 2)
+
+        self.image = pygame.image.load(os.path.join(IMG_DIR, "health.png")).convert_alpha()
+        self.image = pygame.transform.scale(self.image, (int(HEALTH_SCALE * self.image.get_width()), int(HEALTH_SCALE * self.image.get_height())))
 
         self.rect = self.image.get_rect()
         self.rect.x = init_x
