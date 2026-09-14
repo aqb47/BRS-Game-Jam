@@ -5,9 +5,33 @@ from enum import Enum
 
 from config import *
 
+
+# Visual bar to represent the player's current health
+class HealthBar(pygame.sprite.Sprite):
+    def __init__(self, init_x, init_y):
+        super().__init__()
+
+        # TODO: Put a sprite here
+        self.image = pygame.Surface((32, 32)).convert_alpha()
+        pygame.draw.circle(self.image, (0, 0, 255), (self.image.get_width() / 2, self.image.get_height() / 2), self.image.get_width() / 2)
+
+        self.rect = self.image.get_rect()
+        self.rect.x = init_x
+        self.rect.y = init_y
+
+        # How many health icons we'll have
+        self.count = 100 / ENEMY_DAMAGE
+
+    def draw(self, screen):
+        for x_pos in range(self.rect.x, int(self.rect.x + self.count * (self.image.get_width() + HEALTH_PADDING)), int(self.image.get_width() + HEALTH_PADDING)):
+            screen.blit(self.image, (x_pos, self.rect.y))
+
+
+# Essentially represents what the player is currently doing
 class PlayerState(Enum):
     AIMING = 0
     MOVING = 1
+    DEAD = 2
 
 
 # For a pointer arrow indicating the angle for movement
@@ -64,6 +88,7 @@ class Arrow(pygame.sprite.Sprite):
         self.angle = -angle
 
 
+# Base class for electrons and positrons
 class Particle(pygame.sprite.Sprite):
     def __init__(self, charge, mass, vibration_velocity):
         super().__init__()
@@ -220,6 +245,8 @@ class Player(Electron):
         self.rect.x = init_x
         self.rect.y = init_y
         self.state = PlayerState.AIMING # Initially start off by aiming
+
+        self.health = 100
 
         self.last_pos = pygame.math.Vector2(self.rect.x, self.rect.y) # For reversing during a collision
 

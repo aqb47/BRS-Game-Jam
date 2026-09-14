@@ -6,9 +6,10 @@ import random
 import csv
 
 from config import *
-from entities import Electron, Positron, Player, Enemy, Arrow, PlayerState
+from entities import Electron, Positron, Player, Enemy, Arrow, PlayerState, HealthBar
 
 
+# TODO: Load more than one tile map, alternate infinite generation between them for uniqueness. Or, we could load one giant tilemap that has lots of unique parts
 class EnemyTileMap():
     def __init__(self, file_name):
         self.file_name = file_name
@@ -101,6 +102,7 @@ class Game:
         self.player = Player(PLAYER_START_X, PLAYER_START_Y)
         self.player_reversing = False
         self.reverse_enemy = None
+        self.healthbar = HealthBar(HEALTHBAR_X, HEALTHBAR_Y)
 
         # Arrow for direction
         self.arrow = Arrow(PLAYER_START_X + 50, PLAYER_START_Y - 50, self.player.rect.centerx, self.player.rect.centery, 180)
@@ -121,6 +123,7 @@ class Game:
         self.camera_group.add(self.player)
         self.camera_group.add(self.arrow)
 
+    # Spawn a number of enemy chunks
     def spawn_chunks(self, first_column, count):
         for column in range(first_column, first_column + count):
             if column in self.loaded_chunk_columns:
@@ -131,6 +134,8 @@ class Game:
 
         if first_column + count > self.next_chunk_column: self.next_chunk_column = first_column + count
 
+    # For debugging
+    # TODO: Remove this in the final version. I think we could use the coordinates for the score tho, the higher the player x-coordinate the higher the score
     def draw_position(self):
         pos_surface = self.font.render(f"({self.player.rect.x}, {self.player.rect.y})", False, SCORE_COLOR)
         self.screen.blit(pos_surface, COORDINATE_POS)
@@ -139,6 +144,7 @@ class Game:
         score_surface = self.font.render(str(self.score), False, SCORE_COLOR)
         self.screen.blit(score_surface, SCORE_POS)
 
+    # Read CSV and spawn a single enemy chunk
     def spawn_enemy_chunk(self, column):
         offset = pygame.math.Vector2(column * self.chunk_size[0], self.chunk_y)
         for row_idx, row in enumerate(self.tilemap.map):
@@ -150,6 +156,7 @@ class Game:
                     self.enemy_group.add(new_enemy)
                     self.camera_group.add(new_enemy)
 
+    # Event handler
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -174,6 +181,12 @@ class Game:
 
     # Update entity states
     def update(self):
+        # If player is dead
+        if self.player.health == 0:
+            self.player.update_state(PlayerState.DEAD)
+            return
+
+        # Upon a collision, reverse to previous position like a rewind. I've experimented with a normal repulsion force but the physics gets weird
         if self.player_reversing:
             current_pos = pygame.math.Vector2(self.player.rect.topleft)
             target_pos = self.player.last_pos
@@ -193,6 +206,7 @@ class Game:
                     round(value) for value in current_pos + reverse_offset.normalize() * REVERSE_VELOCITY
                 )
 
+            # Screenshake while reversing
             self.camera_group.screenshake += 1
 
             # The reverse animation owns this frame; defer all other updates.
@@ -243,14 +257,21 @@ class Game:
                     continue
 
                 if collision:
-                    self.reverse_enemy = enemy
-                    self.player_reversing = True
+                    if self.player.health - ENEMY_DAMAGE > 0:
+                        self.reverse_enemy = enemy
+                        self.player_reversing = True
+                        self.player.update_state(PlayerState.MOVING)
+                        self.arrow.is_visible = False
 
-    # Draw them on the screen
+                    self.player.health -= ENEMY_DAMAGE
+                    self.healthbar.count -= 1
+
+    # Drawing handler
     def draw(self):
         # Draw sprites and background
         self.camera_group.camera_draw(self.screen, self.player)
 
+        self.healthbar.draw(self.screen)
         self.draw_score()
         self.draw_position()
 
@@ -260,6 +281,11 @@ class Game:
             self.handle_events()
 
             self.update()
+
+            # TODO: Game over screen should be here. Best implementation for the screen stuff would be some sort of stack
+            if self.player.state == PlayerState.DEAD:
+                pygame.quit()
+                raise SystemExit
 
             self.draw()
 
