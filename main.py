@@ -6,7 +6,7 @@ import random
 import csv
 
 from config import *
-from entities import Electron, Positron, Player, Enemy, Arrow, PlayerState, HealthBar
+from entities import Electron, Positron, Player, Enemy, Arrow, PlayerState, HealthBar, Indicator
 
 
 # TODO: Load more than one tile map, alternate infinite generation between them for uniqueness. Or, we could load one giant tilemap that has lots of unique parts
@@ -105,7 +105,8 @@ class Game:
         self.healthbar = HealthBar(HEALTHBAR_X, HEALTHBAR_Y)
 
         # Arrow for direction
-        self.arrow = Arrow(PLAYER_START_X + 50, PLAYER_START_Y - 50, self.player.rect.centerx, self.player.rect.centery, 180)
+        self.arrow = Arrow(PLAYER_START_X + 50, PLAYER_START_Y - 50, self.player.rect.centerx, self.player.rect.centery, ANGULAR_AMPLITUDE)
+        self.indicator = Indicator(PLAYER_START_X, PLAYER_START_Y, ANGULAR_AMPLITUDE)
 
         # Tile map to load enemies
         self.tilemap = EnemyTileMap("example.csv")
@@ -120,6 +121,7 @@ class Game:
 
         self.player_group.add(self.player)
 
+        self.camera_group.add(self.indicator)
         self.camera_group.add(self.player)
         self.camera_group.add(self.arrow)
 
@@ -221,9 +223,13 @@ class Game:
                 electron.apply_attraction(positron) # Apply electron attraction to positron
                 positron.apply_attraction(electron) # Apply positron attraction to electron
 
+        # Update player
         for player in self.player_group:
             player.update()
 
+            self.indicator.update(player)
+
+        # Update enemies
         for enemy in self.enemy_group:
             enemy.update()
 
@@ -231,9 +237,12 @@ class Game:
         self.arrow.update(self.player, self.camera_group.offset)
         
         if self.player.state == PlayerState.AIMING:
+            self.indicator.is_visible = True
             self.arrow.is_visible = True
         else:
+            self.indicator.is_visible = False
             self.arrow.is_visible = False
+
 
         # For keeping a few chunks ahead of the player and removing chunks well behind it.
         load_threshold = (self.next_chunk_column - 1) * self.chunk_size[0]
@@ -261,7 +270,6 @@ class Game:
                         self.reverse_enemy = enemy
                         self.player_reversing = True
                         self.player.update_state(PlayerState.MOVING)
-                        self.arrow.is_visible = False
 
                     self.player.health -= ENEMY_DAMAGE
                     self.healthbar.count -= 1

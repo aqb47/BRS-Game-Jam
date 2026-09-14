@@ -4,15 +4,13 @@ import os
 from enum import Enum
 
 from config import *
+from utils import *
 
 
 # Visual bar to represent the player's current health
 class HealthBar(pygame.sprite.Sprite):
     def __init__(self, init_x, init_y):
         super().__init__()
-
-        # self.image = pygame.Surface((32, 32)).convert_alpha()
-        # pygame.draw.circle(self.image, (0, 0, 255), (self.image.get_width() / 2, self.image.get_height() / 2), self.image.get_width() / 2)
 
         self.image = pygame.image.load(os.path.join(IMG_DIR, "health.png")).convert_alpha()
         self.image = pygame.transform.scale(self.image, (int(HEALTH_SCALE * self.image.get_width()), int(HEALTH_SCALE * self.image.get_height())))
@@ -36,13 +34,42 @@ class PlayerState(Enum):
     DEAD = 2
 
 
+class Indicator(pygame.sprite.Sprite):
+    def __init__(self, init_x, init_y, angular_amplitude):
+        super().__init__()
+
+        # Indicator image
+        self.image = pygame.image.load(os.path.join(IMG_DIR, "indicator.png")).convert_alpha()
+        self.image = pygame.transform.scale(self.image, (int(INDICATOR_SCALE * self.image.get_width()), int(INDICATOR_SCALE * self.image.get_height())))
+
+        # Slice it and make it transparent before blitting to arrow
+        self.image = get_circle_slice(self.image, -angular_amplitude, +angular_amplitude)
+        self.image.set_alpha(INDICATOR_TRANSPARENCY)
+
+        self.is_visible = True
+
+        self.rect = self.image.get_rect()
+        self.rect.x = init_x
+        self.rect.y = init_y
+
+    # Update with player
+    def update(self, player : Player):
+        self.rect.center = player.rect.center
+
+    def draw(self, screen):
+        screen.blit(self.image, self.rect)
+
+
 # For a pointer arrow indicating the angle for movement
 class Arrow(pygame.sprite.Sprite):
     def __init__(self, init_x, init_y, reference_x, reference_y, angular_amplitude):
         super().__init__()
 
+        # Arrow image
         self.image = pygame.image.load(os.path.join(IMG_DIR, "arrow.png")).convert_alpha()
         self.image = pygame.transform.scale(self.image, (int(ARROW_SCALE * self.image.get_width()), int(ARROW_SCALE * self.image.get_height())))
+
+        # We keep on rotating the image so we need a copy of the original
         self.original_image = self.image
 
         self.rect = self.image.get_rect()
