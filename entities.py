@@ -37,7 +37,8 @@ class HealthBar(pygame.sprite.Sprite):
 class PlayerState(Enum):
     AIMING = 0
     MOVING = 1
-    DEAD = 2
+    REVERSING = 2
+    DEAD = 3
 
 
 class Indicator(pygame.sprite.Sprite):
@@ -185,7 +186,7 @@ class Particle(pygame.sprite.Sprite):
         if self.velocity <= 0:
             self.velocity = 0
             self.acceleration = 0
-            # self.angle = 0
+            self.applied_friction = 0
 
         dx += self.velocity * math.cos(-self.target_angle)
         dy += self.velocity * math.sin(-self.target_angle)

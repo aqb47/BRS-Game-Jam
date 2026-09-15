@@ -100,7 +100,6 @@ class Game:
 
         # Controllable electron player
         self.player = Player(PLAYER_START_X, PLAYER_START_Y)
-        self.player_reversing = False
         self.reverse_enemy = None
         self.healthbar = HealthBar(HEALTHBAR_X, HEALTHBAR_Y)
 
@@ -191,14 +190,13 @@ class Game:
             return
 
         # Upon a collision, reverse to previous position like a rewind. I've experimented with a normal repulsion force but the physics gets weird
-        if self.player_reversing:
+        if self.player.state == PlayerState.REVERSING:
             current_pos = pygame.math.Vector2(self.player.rect.topleft)
             target_pos = self.player.last_pos
             reverse_offset = target_pos - current_pos
 
             if reverse_offset.length() <= REVERSE_VELOCITY:
                 self.player.rect.topleft = (round(target_pos.x), round(target_pos.y))
-                self.player_reversing = False
 
                 self.player.velocity = 0
                 self.player.acceleration = 0
@@ -274,8 +272,10 @@ class Game:
                 if collision:
                     if self.player.health - ENEMY_DAMAGE > 0:
                         self.reverse_enemy = enemy
-                        self.player_reversing = True
-                        self.player.update_state(PlayerState.MOVING)
+                        self.player.update_state(PlayerState.REVERSING)
+
+                    self.angular_amplitude -= COLLISION_ANGLE_DEDUCTION
+                    if self.angular_amplitude < STARTING_ANGULAR_AMPLITUDE: self.angular_amplitude = STARTING_ANGULAR_AMPLITUDE
 
                     self.player.health -= ENEMY_DAMAGE
                     self.healthbar.count -= 1
