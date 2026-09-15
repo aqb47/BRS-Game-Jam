@@ -104,9 +104,10 @@ class Game:
         self.reverse_enemy = None
         self.healthbar = HealthBar(HEALTHBAR_X, HEALTHBAR_Y)
 
-        # Arrow for direction
-        self.arrow = Arrow(PLAYER_START_X + 50, PLAYER_START_Y - 50, self.player.rect.centerx, self.player.rect.centery, ANGULAR_AMPLITUDE)
-        self.indicator = Indicator(PLAYER_START_X, PLAYER_START_Y, ANGULAR_AMPLITUDE)
+        # Direction related
+        self.angular_amplitude = STARTING_ANGULAR_AMPLITUDE # In degrees
+        self.arrow = Arrow(PLAYER_START_X + 50, PLAYER_START_Y - 50, self.player.rect.centerx, self.player.rect.centery, self.angular_amplitude)
+        self.indicator = Indicator(PLAYER_START_X, PLAYER_START_Y, self.angular_amplitude)
 
         # Tile map to load enemies
         self.tilemap = EnemyTileMap("example.csv")
@@ -140,6 +141,7 @@ class Game:
     # TODO: Remove this in the final version. I think we could use the coordinates for the score tho, the higher the player x-coordinate the higher the score
     def draw_position(self):
         pos_surface = self.font.render(f"({self.player.rect.x}, {self.player.rect.y})", False, SCORE_COLOR)
+
         self.screen.blit(pos_surface, COORDINATE_POS)
 
     def draw_score(self):
@@ -223,10 +225,14 @@ class Game:
                 electron.apply_attraction(positron) # Apply electron attraction to positron
                 positron.apply_attraction(electron) # Apply positron attraction to electron
 
+        # Angular amplitude
+        if self.angular_amplitude < MAXIMUM_ANGULAR_AMPLITUDE: self.angular_amplitude += ANGLE_STEP
+
         # Update player
         for player in self.player_group:
             player.update()
 
+            self.indicator.max_angular_amplitude = self.angular_amplitude
             self.indicator.update(player)
 
         # Update enemies
@@ -234,6 +240,7 @@ class Game:
             enemy.update()
 
         # Update arrow angle and visibility
+        self.arrow.angular_amplitude = math.radians(self.angular_amplitude)
         self.arrow.update(self.player, self.camera_group.offset)
         
         if self.player.state == PlayerState.AIMING:
@@ -242,7 +249,6 @@ class Game:
         else:
             self.indicator.is_visible = False
             self.arrow.is_visible = False
-
 
         # For keeping a few chunks ahead of the player and removing chunks well behind it.
         load_threshold = (self.next_chunk_column - 1) * self.chunk_size[0]

@@ -7,6 +7,12 @@ from config import *
 from utils import *
 
 
+# For applying powerup to player
+class Powerup(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+
+
 # Visual bar to represent the player's current health
 class HealthBar(pygame.sprite.Sprite):
     def __init__(self, init_x, init_y):
@@ -35,16 +41,19 @@ class PlayerState(Enum):
 
 
 class Indicator(pygame.sprite.Sprite):
-    def __init__(self, init_x, init_y, angular_amplitude):
+    def __init__(self, init_x, init_y, max_angular_amplitude):
         super().__init__()
 
+        self.max_angular_amplitude = max_angular_amplitude
+        self.cur_angular_amplitude = max_angular_amplitude
+
         # Indicator image
-        self.image = pygame.image.load(os.path.join(IMG_DIR, "indicator.png")).convert_alpha()
-        self.image = pygame.transform.scale(self.image, (int(INDICATOR_SCALE * self.image.get_width()), int(INDICATOR_SCALE * self.image.get_height())))
+        self.original_image = pygame.image.load(os.path.join(IMG_DIR, "indicator.png")).convert_alpha()
+        self.original_image = pygame.transform.scale(self.original_image, (int(INDICATOR_SCALE * self.original_image.get_width()), int(INDICATOR_SCALE * self.original_image.get_height())))
+        self.original_image.set_alpha(INDICATOR_TRANSPARENCY)
 
         # Slice it and make it transparent before blitting to arrow
-        self.image = get_circle_slice(self.image, -angular_amplitude, +angular_amplitude)
-        self.image.set_alpha(INDICATOR_TRANSPARENCY)
+        self.image = get_circle_slice(self.original_image, -self.max_angular_amplitude, +self.max_angular_amplitude)
 
         self.is_visible = True
 
@@ -55,6 +64,11 @@ class Indicator(pygame.sprite.Sprite):
     # Update with player
     def update(self, player : Player):
         self.rect.center = player.rect.center
+
+        # Change image if the maximum angular amplitude is changed by another class
+        if self.cur_angular_amplitude != self.max_angular_amplitude:
+            self.image = get_circle_slice(self.original_image, -self.max_angular_amplitude, +self.max_angular_amplitude)
+            self.cur_angular_amplitude = self.max_angular_amplitude
 
     def draw(self, screen):
         screen.blit(self.image, self.rect)
@@ -79,6 +93,7 @@ class Arrow(pygame.sprite.Sprite):
 
         self.reference_distance = self.player_pos.distance_to((init_x, init_y)) 
 
+        # Arrow angular amplitude is in radians
         self.angular_amplitude = math.radians(angular_amplitude) # Convert degree to radians
         self.angle = -self.angular_amplitude # In radians
 
