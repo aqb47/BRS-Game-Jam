@@ -77,7 +77,13 @@ class CameraGroup(pygame.sprite.Group):
 class Game:
     def __init__(self):
         pygame.init()
+        pygame.mixer.init()
         pygame.display.set_caption("TODO")
+
+        # Play background music
+        pygame.mixer.music.load(os.path.join(SOUND_DIR, "atmospheric.mp3"))
+        pygame.mixer.music.set_volume(0.4)
+        pygame.mixer.music.play(-1)
 
         # Clock for limiting FPS and screen to work with
         self.clock = pygame.Clock()
@@ -109,7 +115,7 @@ class Game:
         self.indicator = Indicator(PLAYER_START_X, PLAYER_START_Y, self.angular_amplitude)
 
         # Tile map to load enemies
-        self.tilemap = EnemyTileMap("example.csv")
+        self.tilemap = EnemyTileMap("easy.csv")
         self.tilemap.load_csv()
 
         # Chunk related attributes
