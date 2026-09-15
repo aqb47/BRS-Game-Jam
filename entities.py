@@ -168,7 +168,7 @@ class Particle(pygame.sprite.Sprite):
 
     def update_hitbox(self):
         if self.hitbox_rect is None:
-            self.hitbox_rect = self.rect.inflate(-self.rect.width // 2, -self.rect.height // 2)
+            self.hitbox_rect = self.rect.inflate(-self.rect.width // HITBOX_RATIO, -self.rect.height // HITBOX_RATIO)
         self.hitbox_rect.center = self.rect.center
 
     def update(self):

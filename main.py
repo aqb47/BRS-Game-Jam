@@ -202,6 +202,7 @@ class Game:
                 self.player.acceleration = 0
                 self.player.angle = 0
 
+                self.indicator.is_visible = True
                 self.player.update_state(PlayerState.AIMING)
             else:
                 self.player.rect.topleft = tuple(
@@ -242,10 +243,8 @@ class Game:
         self.arrow.update(self.player, self.camera_group.offset)
         
         if self.player.state == PlayerState.AIMING:
-            self.indicator.is_visible = True
             self.arrow.is_visible = True
         else:
-            self.indicator.is_visible = False
             self.arrow.is_visible = False
 
         # For keeping a few chunks ahead of the player and removing chunks well behind it.
@@ -276,6 +275,9 @@ class Game:
 
                     self.angular_amplitude -= COLLISION_ANGLE_DEDUCTION
                     if self.angular_amplitude < STARTING_ANGULAR_AMPLITUDE: self.angular_amplitude = STARTING_ANGULAR_AMPLITUDE
+
+                    self.indicator.is_visible = False
+                    self.arrow.is_visible = False
 
                     self.player.health -= ENEMY_DAMAGE
                     self.healthbar.count -= 1
