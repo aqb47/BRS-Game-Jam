@@ -4,17 +4,23 @@ import pygame
 import os
 import random
 import csv
+from enum import Enum
 
 from config import *
 from entities import Electron, Positron, Player, Enemy, Arrow, PlayerState, HealthBar, Indicator
 from menu import GameState, Menu
 
 
-# TODO: Load more than one tile map, alternate infinite generation between them for uniqueness. Or, we could load one giant tilemap that has lots of unique parts
+class GameDifficulty(Enum):
+    EASY = 0
+    MEDIUM = 1
+    HARD = 2
+
+
 class EnemyTileMap():
     def __init__(self, file_name):
         self.file_name = file_name
-        self.tile_size = ENEMY_TILE_SIZE
+        self.tile_size = TILE_SIZE
         self.map = []
 
     def load_csv(self):
@@ -119,11 +125,12 @@ class Game:
         self.indicator = Indicator(PLAYER_START_X, PLAYER_START_Y, self.angular_amplitude)
 
         # Tile map to load enemies
-        self.tilemap = EnemyTileMap("easy.csv")
-        self.tilemap.load_csv()
+        self.difficulty_tilemaps : list[EnemyTileMap] = []
+        self.difficulty_tilemaps_init()
 
         # Chunk related attributes
-        self.chunk_size = ((self.tilemap.tile_size + TILE_PADDING) * len(self.tilemap.map[0]), (self.tilemap.tile_size + TILE_PADDING) * len(self.tilemap.map))
+        self.chunk_size = ((self.difficulty_tilemaps[0].tile_size + TILE_PADDING) * len(self.difficulty_tilemaps[0].map[0]), 
+                           (self.difficulty_tilemaps[0].tile_size + TILE_PADDING) * len(self.difficulty_tilemaps[0].map))
         self.chunk_y = self.chunk_size[1]
         self.loaded_chunk_columns = set()
         self.next_chunk_column = 0
@@ -135,14 +142,39 @@ class Game:
         self.camera_group.add(self.player)
         self.camera_group.add(self.arrow)
 
+    def get_chunk_difficulty(self):
+        # Should be between 1 and 0
+        difficulty_factor = self.angular_amplitude / 180
+
+        if difficulty_factor >= 2/3:
+            return GameDifficulty.HARD
+        elif difficulty_factor >= 1/3:
+            return GameDifficulty.MEDIUM
+        else:
+            return GameDifficulty.EASY
+
+    def difficulty_tilemaps_init(self):
+        self.difficulty_tilemaps.append(EnemyTileMap("easy.csv"))
+        self.difficulty_tilemaps.append(EnemyTileMap("medium.csv"))
+        self.difficulty_tilemaps.append(EnemyTileMap("hard.csv"))
+
+        self.difficulty_tilemaps[GameDifficulty.EASY.value].load_csv()
+        self.difficulty_tilemaps[GameDifficulty.MEDIUM.value].load_csv()
+        self.difficulty_tilemaps[GameDifficulty.HARD.value].load_csv()
+
     # Spawn a number of enemy chunks
     def spawn_chunks(self, first_column, count):
+        cur_difficulty = self.get_chunk_difficulty()
+
         for column in range(first_column, first_column + count):
             if column in self.loaded_chunk_columns:
                 continue
 
-            self.spawn_enemy_chunk(column)
+            self.spawn_enemy_chunk(column, cur_difficulty)
             self.loaded_chunk_columns.add(column)
+
+            # Increase difficulty for next chunk
+            cur_difficulty = GameDifficulty(min(GameDifficulty.HARD.value, cur_difficulty.value + 1))
 
         if first_column + count > self.next_chunk_column: self.next_chunk_column = first_column + count
 
@@ -160,13 +192,13 @@ class Game:
         self.screen.blit(dof_surface, DOF_POS)
 
     # Read CSV and spawn a single enemy chunk
-    def spawn_enemy_chunk(self, column):
+    def spawn_enemy_chunk(self, column, difficulty : GameDifficulty):
         offset = pygame.math.Vector2(column * self.chunk_size[0], self.chunk_y)
-        for row_idx, row in enumerate(self.tilemap.map):
+        for row_idx, row in enumerate(self.difficulty_tilemaps[difficulty.value].map):
             for col_idx, value in enumerate(row):
                 # Spawn enemy
                 if value == "0":
-                    new_enemy = Enemy((self.tilemap.tile_size + TILE_PADDING) * col_idx + offset.x, (self.tilemap.tile_size + TILE_PADDING) * row_idx + offset.y)
+                    new_enemy = Enemy((self.difficulty_tilemaps[difficulty.value].tile_size + TILE_PADDING) * col_idx + offset.x, (self.difficulty_tilemaps[difficulty.value].tile_size + TILE_PADDING) * row_idx + offset.y)
 
                     self.enemy_group.add(new_enemy)
                     self.camera_group.add(new_enemy)
@@ -279,7 +311,7 @@ class Game:
         for enemy in self.enemy_group:
             collision = self.player.hitbox_rect.colliderect(enemy.hitbox_rect)
             
-            if collision: 
+            if collision and not enemy.is_exploding: 
                 self.handle_collision(enemy)
                 enemy.explode()
 
@@ -288,7 +320,7 @@ class Game:
         if self.menu.state != GameState.PLAY: return
 
         # If player is dead
-        if self.player.health == 0:
+        if self.player.health <= 0:
             self.end_game()
             return
 
