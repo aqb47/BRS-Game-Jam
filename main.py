@@ -8,6 +8,7 @@ from enum import Enum
 
 from config import *
 from entities import Electron, Positron, Player, Enemy, Arrow, PlayerState, HealthBar, Indicator
+from effects import CRTEffects
 from menu import GameState, Menu
 
 
@@ -95,6 +96,7 @@ class Game:
         # Clock for limiting FPS and screen to work with
         self.clock = pygame.Clock()
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        self.crt_effects = CRTEffects(self.screen)
         pygame.mixer.music.pause()
 
         self.menu = Menu()
@@ -184,11 +186,11 @@ class Game:
         self.screen.blit(pos_surface, COORDINATE_POS)
 
     def draw_score(self):
-        score_surface = self.font.render(str(self.score), False, FONT_COLOR)
+        score_surface = self.font.render(str(self.score), True, FONT_COLOR)
         self.screen.blit(score_surface, SCORE_POS)
 
     def draw_dof(self):
-        dof_surface = self.font.render("DoF: " + str(int(2 * self.angular_amplitude)) + "°", False, FONT_COLOR)
+        dof_surface = self.font.render("DoF: " + str(int(2 * self.angular_amplitude)) + "°", True, FONT_COLOR)
         self.screen.blit(dof_surface, DOF_POS)
 
     # Read CSV and spawn a single enemy chunk
@@ -277,6 +279,10 @@ class Game:
     def update_score(self):
         self.score = max(self.player.rect.centerx // 100, self.score)
 
+    def limit_player_y_pos(self):
+        if self.player.rect.top < LIMIT_TOP: self.player.rect.top = LIMIT_TOP
+        if self.player.rect.bottom > LIMIT_BOTTOM: self.player.rect.bottom = LIMIT_BOTTOM
+
     def update_angular_amplitude(self):
         if self.angular_amplitude < MAXIMUM_ANGULAR_AMPLITUDE: self.angular_amplitude += ANGLE_STEP
 
@@ -348,6 +354,7 @@ class Game:
         # Update player
         for player in self.player_group:
             player.update()
+            self.limit_player_y_pos()
 
             self.indicator.max_angular_amplitude = self.angular_amplitude
             self.indicator.update(player)
@@ -378,6 +385,9 @@ class Game:
         self.draw_score()
         self.draw_dof()
 
+    def apply_crt_effect(self):
+        self.crt_effects.apply()
+
     # Game loop
     def run(self):
         while True:
@@ -388,7 +398,13 @@ class Game:
             if self.menu.state == GameState.PLAY:
                 self.draw()
             else:
+                if self.menu.state == GameState.GAME_OVER:
+                    self.menu.score = self.score
+
                 self.menu.draw(self.screen)
+                
+            # Apply scanlines on screen
+            self.apply_crt_effect()
 
             pygame.display.flip()
             self.clock.tick(FPS)

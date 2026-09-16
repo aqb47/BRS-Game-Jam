@@ -11,7 +11,7 @@ class GameState(Enum):
 
 
 class Menu():
-    TITLE_TEXT = "SubElectronic"
+    TITLE_TEXT = "- SubElectronic -"
 
     def __init__(self):
         self.state = GameState.START
@@ -24,6 +24,8 @@ class Menu():
 
         self.title_font.set_bold(True)
         self.heading_font.set_bold(True)
+
+        self.score = 0
 
     @property
     def options(self):
@@ -64,9 +66,9 @@ class Menu():
             title_rect = title.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 3))
             screen.blit(title, title_rect)
         else:
-            heading_text = "PAUSED" if self.state == GameState.PAUSE else "GAME OVER"
+            heading_text = "PAUSED" if self.state == GameState.PAUSE else f"GAME OVER\n       {self.score}"
             heading = self.heading_font.render(heading_text, True, LIGHT_TURQUOISE)
-            heading_rect = heading.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 3))
+            heading_rect = heading.get_rect(center=(SCREEN_WIDTH // 1.9, SCREEN_HEIGHT // 3))
             screen.blit(heading, heading_rect)
 
         option_surfaces = []
