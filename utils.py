@@ -1,5 +1,6 @@
 import math
 import pygame
+import os
 
 # Get an arc from a circle. Angle should be in degrees
 def get_circle_slice(surface : pygame.Surface, start_angle, end_angle):
@@ -39,3 +40,9 @@ def get_circle_slice(surface : pygame.Surface, start_angle, end_angle):
     sliced_surface.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
     
     return sliced_surface
+
+# Get number of files in a directory
+def file_count(path):
+    if not os.path.isdir(path):
+        return 0
+    return sum(1 for file in os.listdir(path) if os.path.isfile(os.path.join(path, file)))

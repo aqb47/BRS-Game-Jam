@@ -7,6 +7,7 @@ import csv
 
 from config import *
 from entities import Electron, Positron, Player, Enemy, Arrow, PlayerState, HealthBar, Indicator
+from menu import GameState, Menu
 
 
 # TODO: Load more than one tile map, alternate infinite generation between them for uniqueness. Or, we could load one giant tilemap that has lots of unique parts
@@ -81,20 +82,23 @@ class Game:
         pygame.display.set_caption("TODO")
 
         # Play background music
-        pygame.mixer.music.load(os.path.join(SOUND_DIR, "atmospheric.mp3"))
-        pygame.mixer.music.set_volume(0.4)
+        pygame.mixer.music.load(os.path.join(SOUND_DIR, "thesecondone.mp3"))
+        pygame.mixer.music.set_volume(VOLUME)
         pygame.mixer.music.play(-1)
 
         # Clock for limiting FPS and screen to work with
         self.clock = pygame.Clock()
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.mixer.music.pause()
+
+        self.menu = Menu()
 
         # Background and screen
-        self.bg_color = BG
-        self.background = pygame.image.load(os.path.join(IMG_DIR, "sample_background.png")).convert_alpha()
+        self.bg_color = DARK_BLUE
+        self.background = pygame.image.load(os.path.join(IMG_DIR, "background_with_particles.png")).convert_alpha()
 
         # Score stuff
-        self.font = pygame.font.Font(SCORE_FONT, SCORE_FONT_SIZE)
+        self.font = pygame.font.Font(SCORE_FONT, FONT_SIZE)
         self.score = 0
 
         # Enemy and player groups to know how we should apply attraction forces
@@ -143,15 +147,17 @@ class Game:
         if first_column + count > self.next_chunk_column: self.next_chunk_column = first_column + count
 
     # For debugging
-    # TODO: Remove this in the final version. I think we could use the coordinates for the score tho, the higher the player x-coordinate the higher the score
     def draw_position(self):
-        pos_surface = self.font.render(f"({self.player.rect.x}, {self.player.rect.y})", False, SCORE_COLOR)
-
+        pos_surface = self.font.render(f"({self.player.rect.x}, {self.player.rect.y})", False, FONT_COLOR)
         self.screen.blit(pos_surface, COORDINATE_POS)
 
     def draw_score(self):
-        score_surface = self.font.render(str(self.score), False, SCORE_COLOR)
+        score_surface = self.font.render(str(self.score), False, FONT_COLOR)
         self.screen.blit(score_surface, SCORE_POS)
+
+    def draw_dof(self):
+        dof_surface = self.font.render("DoF: " + str(int(2 * self.angular_amplitude)) + "°", False, FONT_COLOR)
+        self.screen.blit(dof_surface, DOF_POS)
 
     # Read CSV and spawn a single enemy chunk
     def spawn_enemy_chunk(self, column):
@@ -172,6 +178,23 @@ class Game:
                 pygame.quit()
                 raise SystemExit
 
+            if self.menu.state != GameState.PLAY:
+                action = self.menu.handle_event(event)
+                if action == "start" or action == "resume":
+                    self.menu.state = GameState.PLAY
+                    pygame.mixer.music.unpause()
+                elif action == "retry":
+                    self.reset_game()
+                elif action == "quit":
+                    pygame.quit()
+                    raise SystemExit
+                continue
+
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                self.menu.state = GameState.PAUSE
+                pygame.mixer.music.pause()
+                continue
+
             if event.type == pygame.MOUSEBUTTONDOWN:
                 # Shoot electron
                 if event.button == 1: # Left click
@@ -188,32 +211,90 @@ class Game:
         mouse_x, mouse_y = pygame.mouse.get_pos()
         self.arrow.mouse_pos = (mouse_x, mouse_y)
 
+    def reset_game(self):
+        self.__init__()
+
+        self.menu.state = GameState.PLAY
+        pygame.mixer.music.unpause()
+
+    def end_game(self):
+        self.player.update_state(PlayerState.DEAD)
+        
+        self.menu.state = GameState.GAME_OVER
+        pygame.mixer.music.pause()
+
+    def rewind_player(self):
+        current_pos = pygame.math.Vector2(self.player.rect.topleft)
+        target_pos = self.player.last_pos
+        reverse_offset = target_pos - current_pos
+
+        if reverse_offset.length() <= REVERSE_VELOCITY:
+            self.player.rect.topleft = (round(target_pos.x), round(target_pos.y))
+
+            self.player.velocity = 0
+            self.player.acceleration = 0
+            self.player.angle = 0
+
+            self.indicator.is_visible = True
+            self.player.update_state(PlayerState.AIMING)
+        else:
+            self.player.rect.topleft = tuple(
+                round(value) for value in current_pos + reverse_offset.normalize() * REVERSE_VELOCITY
+            )
+
+    def update_score(self):
+        self.score = max(self.player.rect.centerx // 100, self.score)
+
+    def update_angular_amplitude(self):
+        if self.angular_amplitude < MAXIMUM_ANGULAR_AMPLITUDE: self.angular_amplitude += ANGLE_STEP
+
+    def cleanup_enemies(self):
+        # For keeping a few chunks ahead of the player and removing chunks well behind it.
+        load_threshold = (self.next_chunk_column - 1) * self.chunk_size[0]
+        if self.player.rect.right >= load_threshold:
+            self.spawn_chunks(self.next_chunk_column, 3)
+
+        cleanup_threshold = self.player.rect.left - self.chunk_size[0]
+
+        for enemy in self.enemy_group:
+            # Kill enemy far behind
+            if enemy.rect.right < cleanup_threshold or not enemy.is_visible:
+                enemy.kill()
+
+    def handle_collision(self, enemy):
+        if self.player.health - ENEMY_DAMAGE > 0:
+            self.reverse_enemy = enemy
+            self.player.update_state(PlayerState.REVERSING)
+
+        self.angular_amplitude -= COLLISION_ANGLE_DEDUCTION
+        if self.angular_amplitude < STARTING_ANGULAR_AMPLITUDE: self.angular_amplitude = STARTING_ANGULAR_AMPLITUDE
+
+        self.indicator.is_visible = False
+        self.arrow.is_visible = False
+
+        self.player.health -= ENEMY_DAMAGE
+        self.healthbar.count -= 1
+
+    def check_collision(self):
+        for enemy in self.enemy_group:
+            collision = self.player.hitbox_rect.colliderect(enemy.hitbox_rect)
+            
+            if collision: 
+                self.handle_collision(enemy)
+                enemy.explode()
+
     # Update entity states
     def update(self):
+        if self.menu.state != GameState.PLAY: return
+
         # If player is dead
         if self.player.health == 0:
-            self.player.update_state(PlayerState.DEAD)
+            self.end_game()
             return
 
         # Upon a collision, reverse to previous position like a rewind. I've experimented with a normal repulsion force but the physics gets weird
         if self.player.state == PlayerState.REVERSING:
-            current_pos = pygame.math.Vector2(self.player.rect.topleft)
-            target_pos = self.player.last_pos
-            reverse_offset = target_pos - current_pos
-
-            if reverse_offset.length() <= REVERSE_VELOCITY:
-                self.player.rect.topleft = (round(target_pos.x), round(target_pos.y))
-
-                self.player.velocity = 0
-                self.player.acceleration = 0
-                self.player.angle = 0
-
-                self.indicator.is_visible = True
-                self.player.update_state(PlayerState.AIMING)
-            else:
-                self.player.rect.topleft = tuple(
-                    round(value) for value in current_pos + reverse_offset.normalize() * REVERSE_VELOCITY
-                )
+            self.rewind_player()
 
             # Screenshake while reversing
             self.camera_group.screenshake += 1
@@ -221,8 +302,7 @@ class Game:
             # The reverse animation owns this frame; defer all other updates.
             return
 
-        # basic scoring for now
-        self.score = self.player.rect.centerx
+        self.update_score()
 
         # Attraction forces
         for electron in self.player_group:
@@ -231,7 +311,7 @@ class Game:
                 positron.apply_attraction(electron) # Apply positron attraction to electron
 
         # Angular amplitude
-        if self.angular_amplitude < MAXIMUM_ANGULAR_AMPLITUDE: self.angular_amplitude += ANGLE_STEP
+        self.update_angular_amplitude()
 
         # Update player
         for player in self.player_group:
@@ -253,41 +333,10 @@ class Game:
         else:
             self.arrow.is_visible = False
 
-        # For keeping a few chunks ahead of the player and removing chunks well behind it.
-        load_threshold = (self.next_chunk_column - 1) * self.chunk_size[0]
-        if self.player.rect.right >= load_threshold:
-            self.spawn_chunks(self.next_chunk_column, 3)
-
-        cleanup_threshold = self.player.rect.left - self.chunk_size[0]
-
-        for enemy in self.enemy_group:
-            # Kill enemy far behind
-            if enemy.rect.right < cleanup_threshold:
-                enemy.kill()
-            # If enemy is close check collision
-            else:
-                collision = self.player.hitbox_rect.colliderect(enemy.hitbox_rect)
-
-                # So we don't get into a loop of running into the same enemy
-                if enemy is self.reverse_enemy:
-                    if not collision:
-                        self.reverse_enemy = None
-                    continue
-
-                if collision:
-                    if self.player.health - ENEMY_DAMAGE > 0:
-                        self.reverse_enemy = enemy
-                        self.player.update_state(PlayerState.REVERSING)
-
-                    self.angular_amplitude -= COLLISION_ANGLE_DEDUCTION
-                    if self.angular_amplitude < STARTING_ANGULAR_AMPLITUDE: self.angular_amplitude = STARTING_ANGULAR_AMPLITUDE
-
-                    self.indicator.is_visible = False
-                    self.arrow.is_visible = False
-
-                    self.player.health -= ENEMY_DAMAGE
-                    self.healthbar.count -= 1
-
+        # Cleanup and collisions
+        self.cleanup_enemies()
+        self.check_collision()
+                    
     # Drawing handler
     def draw(self):
         # Draw sprites and background
@@ -295,7 +344,7 @@ class Game:
 
         self.healthbar.draw(self.screen)
         self.draw_score()
-        self.draw_position()
+        self.draw_dof()
 
     # Game loop
     def run(self):
@@ -304,12 +353,10 @@ class Game:
 
             self.update()
 
-            # TODO: Game over screen should be here. Best implementation for the screen stuff would be some sort of stack
-            if self.player.state == PlayerState.DEAD:
-                pygame.quit()
-                raise SystemExit
-
-            self.draw()
+            if self.menu.state == GameState.PLAY:
+                self.draw()
+            else:
+                self.menu.draw(self.screen)
 
             pygame.display.flip()
             self.clock.tick(FPS)

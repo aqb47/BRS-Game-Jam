@@ -265,6 +265,8 @@ class Electron(Particle):
 
 
 class Positron(Particle):
+    explosion_frames = []
+
     def __init__(self):
         super().__init__(charge = +1, mass = 1, vibration_velocity = ENEMY_VIBRATION_VELOCITY)
 
@@ -274,14 +276,38 @@ class Positron(Particle):
 
         self.original_image = self.image
 
+        self.frame_count = file_count(POSITRON_EXPLODING_DIR)
+        self.frame_index = 0
+        if len(Positron.explosion_frames) == 0:
+            self.load_frames()
+
+        self.is_exploding = False
+
         self.rect = self.image.get_rect()
         self.update_hitbox()
 
     def draw(self, screen):
         screen.blit(self.image, self.rect)
 
+    def explode(self):
+        self.is_exploding = True
+
+    def load_frames(self):
+        for i in range(0, self.frame_count):
+            frame = pygame.image.load(os.path.join(POSITRON_EXPLODING_DIR, f" {i + 1}.png")).convert_alpha()
+            frame = pygame.transform.scale(frame, (int(SCALE * frame.get_width()), int(SCALE * frame.get_height())))
+
+            Positron.explosion_frames.append(frame)
+
     def update(self):
         super().update()
+
+        if self.is_exploding:
+            if self.frame_index < self.frame_count - 1:
+                self.image = Positron.explosion_frames[self.frame_index]
+                self.frame_index += 1
+
+            else: self.is_visible = False
 
 
 class Player(Electron):
