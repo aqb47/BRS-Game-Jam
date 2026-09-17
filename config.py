@@ -38,7 +38,7 @@ HEALTH_DIMINISHING_DIR = ANIMATION_DIR / "health_diminishing"
 
 # Audio
 SOUND_DIR = BASE_DIR / "sound"
-VOLUME = 0.1
+VOLUME = 0.05
 
 # Font
 FONT_DIR = BASE_DIR / "fonts"

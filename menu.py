@@ -11,7 +11,7 @@ class GameState(Enum):
 
 
 class Menu():
-    TITLE_TEXT = " SubElectronic "
+    TITLE_TEXT = " SubElectronic"
 
     def __init__(self):
         self.state = GameState.START
