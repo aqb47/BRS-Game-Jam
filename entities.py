@@ -47,7 +47,7 @@ class Item(pygame.sprite.Sprite):
     def load_frames(self, animation_type, animation_dir):
         for i in range(file_count(animation_dir)):
             frame = pygame.image.load(os.path.join(animation_dir, f" {i + 1}.png")).convert_alpha()
-            frame = pygame.transform.scale(frame, (int(SCALE * frame.get_width()), int(SCALE * frame.get_height())))
+            frame = pygame.transform.scale(frame, (int(DEFAULT_SCALE * frame.get_width()), int(DEFAULT_SCALE * frame.get_height())))
             Item.diminishing_frames[animation_type].append(frame)
 
     def apply_effects(self, player):
@@ -115,13 +115,15 @@ class HealthBar(pygame.sprite.Sprite):
             HealthBar.animation_frames.append(frame)
 
     def set_health(self, health):
-        new_count = int(health // ENEMY_DAMAGE)
-        if new_count == self.count or self.is_animating:
+        new_count = health // ENEMY_DAMAGE
+        if new_count == self.count:
             return
 
         self.animation_index = min(self.count, new_count)
-        self.animation_frame_index = -1 if new_count < self.count else len(HealthBar.animation_frames)
+
+        self.animation_frame_index = 0 if new_count < self.count else len(HealthBar.animation_frames) - 1
         self.animation_direction = 1 if new_count < self.count else -1
+
         self.is_animating = True
 
     def update(self):
@@ -129,19 +131,26 @@ class HealthBar(pygame.sprite.Sprite):
             return
 
         self.animation_frame_index += self.animation_direction
+
         if self.animation_frame_index < 0 or self.animation_frame_index >= len(HealthBar.animation_frames):
             self.count = self.animation_index if self.animation_direction == 1 else self.animation_index + 1
             self.is_animating = False
 
     def draw(self, screen):
-        for x_pos in range(self.rect.x, int(self.rect.x + self.count * (self.image.get_width() + HEALTH_PADDING)), int(self.image.get_width() + HEALTH_PADDING)):
+        icon_spacing = self.image.get_width() + HEALTH_PADDING
+        for icon_index in range(self.count):
+            if self.is_animating and icon_index == self.animation_index:
+                continue
+            x_pos = self.rect.x + icon_index * icon_spacing
             screen.blit(self.image, (x_pos, self.rect.y))
 
         if self.is_animating:
-            x_pos = self.rect.x + self.animation_index * (self.image.get_width() + HEALTH_PADDING)
+            x_pos = self.rect.x + self.animation_index * icon_spacing
+
             if 0 <= self.animation_frame_index < len(HealthBar.animation_frames):
                 frame = HealthBar.animation_frames[self.animation_frame_index]
                 screen.blit(frame, (x_pos, self.rect.y))
+            else: self.is_animating = False
 
 
 # Essentially represents what the player is currently doing
@@ -363,7 +372,7 @@ class Electron(Particle):
 
         # placeholder sprite for now
         self.image = pygame.image.load(os.path.join(PARTICLES_DIR, "electron.png")).convert_alpha()
-        self.image = pygame.transform.scale(self.image, (int(SCALE * self.image.get_width()), int(SCALE * self.image.get_height())))
+        self.image = pygame.transform.scale(self.image, (int(DEFAULT_SCALE * self.image.get_width()), int(DEFAULT_SCALE * self.image.get_height())))
 
         self.original_image = self.image
 
@@ -382,7 +391,7 @@ class Electron(Particle):
     def load_frames(self):
         for i in range(0, self.frame_count):
             frame = pygame.image.load(os.path.join(ELECTRON_EXPLODING_DIR, f" {i + 1}.png")).convert_alpha()
-            frame = pygame.transform.scale(frame, (int(SCALE * frame.get_width()), int(SCALE * frame.get_height())))
+            frame = pygame.transform.scale(frame, (int(DEFAULT_SCALE * frame.get_width()), int(DEFAULT_SCALE * frame.get_height())))
             Electron.explosion_frames.append(frame)
 
     def explode(self):
@@ -409,7 +418,7 @@ class Positron(Particle):
 
         # placeholder sprite for now
         self.image = pygame.image.load(os.path.join(PARTICLES_DIR, "positron.png")).convert_alpha()
-        self.image = pygame.transform.scale(self.image, (int(SCALE * self.image.get_width()), int(SCALE * self.image.get_height())))
+        self.image = pygame.transform.scale(self.image, (int(DEFAULT_SCALE * self.image.get_width()), int(DEFAULT_SCALE * self.image.get_height())))
 
         self.original_image = self.image
 
@@ -432,7 +441,7 @@ class Positron(Particle):
     def load_frames(self):
         for i in range(0, self.frame_count):
             frame = pygame.image.load(os.path.join(POSITRON_EXPLODING_DIR, f" {i + 1}.png")).convert_alpha()
-            frame = pygame.transform.scale(frame, (int(SCALE * frame.get_width()), int(SCALE * frame.get_height())))
+            frame = pygame.transform.scale(frame, (int(DEFAULT_SCALE * frame.get_width()), int(DEFAULT_SCALE * frame.get_height())))
 
             Positron.explosion_frames.append(frame)
 

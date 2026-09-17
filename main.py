@@ -101,6 +101,13 @@ class Game:
 
         self.menu = Menu()
 
+        # Mouse cursor
+        self.mouse_cursor_icon = pygame.image.load(os.path.join(IMG_DIR, "cursor.png")).convert_alpha()
+        self.mouse_cursor_icon = pygame.transform.scale(self.mouse_cursor_icon, (int(CURSOR_SCALE * self.mouse_cursor_icon.get_width()), int(CURSOR_SCALE * self.mouse_cursor_icon.get_height())))
+
+        cursor = pygame.Cursor((self.mouse_cursor_icon.get_width() // 2, self.mouse_cursor_icon.get_height() // 2), self.mouse_cursor_icon)
+        pygame.mouse.set_cursor(cursor)
+
         # Difficulty
         self.difficulty = GameDifficulty.EASY
         self.attraction_speed = EASY_ATTRACTION_SPEED
@@ -351,7 +358,7 @@ class Game:
         self.arrow.is_visible = False
 
         self.player.change_health(-ENEMY_DAMAGE)
-        self.healthbar.count = self.player.health / ENEMY_DAMAGE
+        self.healthbar.set_health(self.player.health)
 
         self.collision_sound.play()
 
@@ -367,8 +374,9 @@ class Game:
         for item in self.item_group:
             if not item.is_diminishing and self.player.hitbox_rect.colliderect(item.rect):
                 item.apply_effects(self.player)
+                
                 self.angular_amplitude = self.player.angular_amplitude
-                self.healthbar.count = self.player.health / ENEMY_DAMAGE
+                self.healthbar.set_health(self.player.health)
 
                 self.collision_sound.play()
 
@@ -395,6 +403,8 @@ class Game:
         self.update_attraction_speed()
 
         if self.menu.state != GameState.PLAY: return
+
+        self.healthbar.update()
 
         # If player is dead
         if self.player.health <= 0:
