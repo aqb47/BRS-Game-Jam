@@ -11,7 +11,7 @@ class GameState(Enum):
 
 
 class Menu():
-    TITLE_TEXT = "- SubElectronic -"
+    TITLE_TEXT = " SubElectronic "
 
     def __init__(self):
         self.state = GameState.START
@@ -62,9 +62,19 @@ class Menu():
         screen.fill(BLACK)
 
         if self.state == GameState.START:
-            title = self.title_font.render(self.TITLE_TEXT, True, LIGHT_TURQUOISE)
-            title_rect = title.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 3))
-            screen.blit(title, title_rect)
+            plus = self.title_font.render("+", True, OFF_RED)
+            word = self.title_font.render(self.TITLE_TEXT, True, LIGHT_TURQUOISE)
+            minus = self.title_font.render("-", True, LIGHT_BLUE)
+
+            word_rect = word.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 3))
+
+            screen.blit(plus, pygame.Vector2(word_rect.topleft) - pygame.Vector2((plus.get_width(), 0)))
+            screen.blit(word, word_rect)
+            screen.blit(minus, pygame.Vector2(word_rect.topright) + pygame.Vector2((minus.get_width(), 0)))
+
+            # title = self.title_font.render(self.TITLE_TEXT, True, LIGHT_TURQUOISE)
+            # title_rect = title.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 3))
+            # screen.blit(title, title_rect)
         else:
             heading_text = "PAUSED" if self.state == GameState.PAUSE else f"GAME OVER\n       {self.score}"
             heading = self.heading_font.render(heading_text, True, LIGHT_TURQUOISE)
