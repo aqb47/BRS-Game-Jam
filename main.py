@@ -88,16 +88,16 @@ class Game:
         pygame.mixer.init()
         pygame.display.set_caption("TODO")
 
+        # Sounds
+        self.load_sounds()
+
         # Play background music
-        pygame.mixer.music.load(os.path.join(SOUND_DIR, "thesecondone.mp3"))
-        pygame.mixer.music.set_volume(VOLUME)
-        pygame.mixer.music.play(-1)
+        self.music_state = GameState.START
 
         # Clock for limiting FPS and screen to work with
         self.clock = pygame.Clock()
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.crt_effects = CRTEffects(self.screen)
-        pygame.mixer.music.pause()
 
         self.menu = Menu()
 
@@ -143,6 +143,26 @@ class Game:
         self.camera_group.add(self.indicator)
         self.camera_group.add(self.player)
         self.camera_group.add(self.arrow)
+
+    def load_sounds(self):
+        self.collision_sound = pygame.mixer.Sound(os.path.join(SOUND_DIR, "collision.mp3"))  
+        self.game_over_sound = pygame.mixer.Sound(os.path.join(SOUND_DIR, "gameover.mp3"))
+
+        self.collision_sound.set_volume(VOLUME)
+        self.game_over_sound.set_volume(VOLUME)
+
+    def start_gameplay_music(self):
+        pygame.mixer.music.load(os.path.join(SOUND_DIR, "bgm2.mp3"))
+        pygame.mixer.music.set_volume(VOLUME)
+        pygame.mixer.music.play(-1)
+
+    def start_menu_music(self):
+        pygame.mixer.music.load(os.path.join(SOUND_DIR, "bgm1.mp3"))
+        pygame.mixer.music.set_volume(VOLUME)
+        pygame.mixer.music.play(-1)
+
+    def stop_music(self):
+        pygame.mixer.music.stop()
 
     def get_chunk_difficulty(self):
         # Should be between 1 and 0
@@ -214,19 +234,19 @@ class Game:
 
             if self.menu.state != GameState.PLAY:
                 action = self.menu.handle_event(event)
+
                 if action == "start" or action == "resume":
                     self.menu.state = GameState.PLAY
-                    pygame.mixer.music.unpause()
                 elif action == "retry":
                     self.reset_game()
                 elif action == "quit":
                     pygame.quit()
                     raise SystemExit
+
                 continue
 
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 self.menu.state = GameState.PAUSE
-                pygame.mixer.music.pause()
                 continue
 
             if event.type == pygame.MOUSEBUTTONDOWN:
@@ -249,13 +269,13 @@ class Game:
         self.__init__()
 
         self.menu.state = GameState.PLAY
-        pygame.mixer.music.unpause()
+        self.update_music()
 
     def end_game(self):
         self.player.update_state(PlayerState.DEAD)
         
         self.menu.state = GameState.GAME_OVER
-        pygame.mixer.music.pause()
+        self.update_music()
 
     def rewind_player(self):
         current_pos = pygame.math.Vector2(self.player.rect.topleft)
@@ -313,6 +333,8 @@ class Game:
         self.player.health -= ENEMY_DAMAGE
         self.healthbar.count -= 1
 
+        self.collision_sound.play()
+
     def check_collision(self):
         for enemy in self.enemy_group:
             collision = self.player.hitbox_rect.colliderect(enemy.hitbox_rect)
@@ -321,12 +343,25 @@ class Game:
                 self.handle_collision(enemy)
                 enemy.explode()
 
+    def update_music(self):
+        if self.music_state != self.menu.state or not pygame.mixer.music.get_busy():
+            if self.menu.state == GameState.PLAY:
+                self.start_gameplay_music()
+            elif self.menu.state == GameState.PAUSE or self.menu.state == GameState.START:
+                self.start_menu_music()
+            elif self.menu.state == GameState.GAME_OVER:
+                pygame.mixer.music.stop()
+
+            self.music_state = self.menu.state
+
     # Update entity states
     def update(self):
+        self.update_music()
         if self.menu.state != GameState.PLAY: return
 
         # If player is dead
         if self.player.health <= 0:
+            self.game_over_sound.play()
             self.end_game()
             return
 
@@ -403,7 +438,7 @@ class Game:
 
                 self.menu.draw(self.screen)
                 
-            # Apply scanlines on screen
+            # Apply CRT effects on screen
             self.apply_crt_effect()
 
             pygame.display.flip()

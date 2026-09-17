@@ -1,35 +1,24 @@
 import random
-
 import pygame
 
-from config import (
-    GLITCH_EFFECT_OFFSET,
-    GLITCH_EFFECT_WIDTH,
-    GLOW_SCALE,
-    MAX_SLICE,
-    MIN_SLICE,
-    PIXELATION_SCALE,
-    SCANLINE_STEP,
-    SCREEN_HEIGHT,
-    SCREEN_WIDTH,
-    STATIC_CHANCE,
-    STATIC_STEP,
-)
+from config import *
 
 
 class CRTEffects:
     def __init__(self, screen):
         self.screen = screen
-        self.pixelation_surface = pygame.Surface(
-            (SCREEN_WIDTH // PIXELATION_SCALE, SCREEN_HEIGHT // PIXELATION_SCALE)
-        )
-        self.glow_surface = pygame.Surface(
-            (SCREEN_WIDTH // GLOW_SCALE, SCREEN_HEIGHT // GLOW_SCALE)
-        )
+
+        self.pixelation_surface = pygame.Surface((SCREEN_WIDTH // PIXELATION_SCALE, SCREEN_HEIGHT // PIXELATION_SCALE))
+
+        self.glow_surface = pygame.Surface((SCREEN_WIDTH // GLOW_SCALE, SCREEN_HEIGHT // GLOW_SCALE))
+
         self.glitch_surface = pygame.Surface((GLITCH_EFFECT_WIDTH, MAX_SLICE))
+
         self.scanline_overlay = self.create_scanline_overlay()
+
         self.static_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
 
+    # Apply all effects
     def apply(self):
         self.apply_scanlines()
         self.apply_pixelation()
@@ -42,32 +31,18 @@ class CRTEffects:
         self.screen.blit(self.scanline_overlay, (0, 0))
 
     def apply_pixelation(self):
-        pygame.transform.scale(
-            self.screen,
-            self.pixelation_surface.get_size(),
-            self.pixelation_surface,
-        )
-        pygame.transform.scale(
-            self.pixelation_surface,
-            self.screen.get_size(),
-            self.screen,
-        )
+        pygame.transform.scale(self.screen, self.pixelation_surface.get_size(), self.pixelation_surface)
+
+        pygame.transform.scale(self.pixelation_surface, self.screen.get_size(), self.screen)
 
     def apply_flicker(self):
         if random.randint(0, 20) == 0:
             self.screen.fill((5, 5, 5), special_flags=pygame.BLEND_RGB_ADD)
 
     def apply_glow(self):
-        pygame.transform.smoothscale(
-            self.screen,
-            self.glow_surface.get_size(),
-            self.glow_surface,
-        )
-        pygame.transform.smoothscale(
-            self.glow_surface,
-            self.screen.get_size(),
-            self.screen,
-        )
+        pygame.transform.smoothscale(self.screen, self.glow_surface.get_size(), self.glow_surface)
+
+        pygame.transform.smoothscale(self.glow_surface, self.screen.get_size(), self.screen)
 
     def apply_glitch_effect(self):
         if random.random() >= 0.01:
@@ -79,11 +54,7 @@ class CRTEffects:
         slice_area = pygame.Rect(0, y_pos, GLITCH_EFFECT_WIDTH, slice_height)
 
         self.glitch_surface.blit(self.screen, (0, 0), slice_area)
-        self.screen.blit(
-            self.glitch_surface,
-            (offset, y_pos),
-            pygame.Rect(0, 0, GLITCH_EFFECT_WIDTH, slice_height),
-        )
+        self.screen.blit(self.glitch_surface, (offset, y_pos), pygame.Rect(0, 0, GLITCH_EFFECT_WIDTH, slice_height))
 
     def apply_rolling_static(self):
         has_static = False
@@ -94,12 +65,7 @@ class CRTEffects:
             if not has_static:
                 self.static_surface.fill((0, 0, 0, 0))
                 has_static = True
-            pygame.draw.line(
-                self.static_surface,
-                (255, 255, 255, random.randint(10, 50)),
-                (0, y_pos),
-                (SCREEN_WIDTH, y_pos),
-            )
+            pygame.draw.line(self.static_surface, (255, 255, 255, random.randint(20, 70)), (0, y_pos), (SCREEN_WIDTH, y_pos))
 
         if has_static:
             self.screen.blit(self.static_surface, (0, 0))
@@ -107,10 +73,5 @@ class CRTEffects:
     def create_scanline_overlay(self):
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         for y_pos in range(0, SCREEN_HEIGHT, SCANLINE_STEP):
-            pygame.draw.line(
-                overlay,
-                (0, 0, 0, 40),
-                (0, y_pos),
-                (SCREEN_WIDTH, y_pos),
-            )
+            pygame.draw.line(overlay, (0, 0, 0, 40), (0, y_pos), (SCREEN_WIDTH, y_pos))
         return overlay
