@@ -7,7 +7,7 @@ import csv
 from enum import Enum
 
 from config import *
-from entities import Electron, Positron, Player, Enemy, Arrow, PlayerState, HealthBar, Indicator
+from entities import Electron, Positron, Player, Enemy, Arrow, PlayerState, HealthBar, Indicator, Item, ItemType
 from effects import CRTEffects
 from menu import GameState, Menu
 
@@ -101,6 +101,10 @@ class Game:
 
         self.menu = Menu()
 
+        # Difficulty
+        self.difficulty = GameDifficulty.EASY
+        self.attraction_speed = EASY_ATTRACTION_SPEED
+
         # Background and screen
         self.bg_color = DARK_BLUE
         self.background = pygame.image.load(os.path.join(IMG_DIR, "background_with_particles.png")).convert_alpha()
@@ -111,6 +115,7 @@ class Game:
 
         # Enemy and player groups to know how we should apply attraction forces
         self.enemy_group = pygame.sprite.Group()
+        self.item_group = pygame.sprite.Group()
         self.player_group = pygame.sprite.Group()
 
         # Elements that should move with the camera have to be added here 
@@ -118,7 +123,6 @@ class Game:
 
         # Controllable electron player
         self.player = Player(PLAYER_START_X, PLAYER_START_Y)
-        self.reverse_enemy = None
         self.healthbar = HealthBar(HEALTHBAR_X, HEALTHBAR_Y)
 
         # Direction related
@@ -164,7 +168,7 @@ class Game:
     def stop_music(self):
         pygame.mixer.music.stop()
 
-    def get_chunk_difficulty(self):
+    def get_difficulty(self):
         # Should be between 1 and 0
         difficulty_factor = self.angular_amplitude / 180
 
@@ -186,17 +190,13 @@ class Game:
 
     # Spawn a number of enemy chunks
     def spawn_chunks(self, first_column, count):
-        cur_difficulty = self.get_chunk_difficulty()
-
         for column in range(first_column, first_column + count):
             if column in self.loaded_chunk_columns:
                 continue
 
-            self.spawn_enemy_chunk(column, cur_difficulty)
+            chunk_difficulty = GameDifficulty((column + 1) % len(GameDifficulty))
+            self.spawn_enemy_chunk(column, chunk_difficulty)
             self.loaded_chunk_columns.add(column)
-
-            # Increase difficulty for next chunk
-            cur_difficulty = GameDifficulty(min(GameDifficulty.HARD.value, cur_difficulty.value + 1))
 
         if first_column + count > self.next_chunk_column: self.next_chunk_column = first_column + count
 
@@ -213,6 +213,12 @@ class Game:
         dof_surface = self.font.render("DoF: " + str(int(2 * self.angular_amplitude)) + "°", True, FONT_COLOR)
         self.screen.blit(dof_surface, DOF_POS)
 
+    def update_attraction_speed(self):
+        match self.difficulty:
+            case GameDifficulty.EASY: self.attraction_speed = EASY_ATTRACTION_SPEED
+            case GameDifficulty.MEDIUM: self.attraction_speed = MEDIUM_ATTRACTION_SPEED
+            case GameDifficulty.HARD: self.attraction_speed = HARD_ATTRACTION_SPEED
+
     # Read CSV and spawn a single enemy chunk
     def spawn_enemy_chunk(self, column, difficulty : GameDifficulty):
         offset = pygame.math.Vector2(column * self.chunk_size[0], self.chunk_y)
@@ -224,6 +230,15 @@ class Game:
 
                     self.enemy_group.add(new_enemy)
                     self.camera_group.add(new_enemy)
+
+                # Spawn item
+                if value == "2":
+                    item_type = ItemType(random.randint(0, len(ItemType) - 1))
+
+                    new_item = Item(item_type, (self.difficulty_tilemaps[difficulty.value].tile_size + TILE_PADDING) * col_idx + offset.x, (self.difficulty_tilemaps[difficulty.value].tile_size + TILE_PADDING) * row_idx + offset.y)
+
+                    self.item_group.add(new_item)
+                    self.camera_group.add(new_item)
 
     # Event handler
     def handle_events(self):
@@ -297,7 +312,7 @@ class Game:
             )
 
     def update_score(self):
-        self.score = max(self.player.rect.centerx // 100, self.score)
+        self.score = max((self.player.rect.centerx - PLAYER_START_X) // 100, self.score)
 
     def limit_player_y_pos(self):
         if self.player.rect.top < LIMIT_TOP: self.player.rect.top = LIMIT_TOP
@@ -306,7 +321,7 @@ class Game:
     def update_angular_amplitude(self):
         if self.angular_amplitude < MAXIMUM_ANGULAR_AMPLITUDE: self.angular_amplitude += ANGLE_STEP
 
-    def cleanup_enemies(self):
+    def cleanup(self):
         # For keeping a few chunks ahead of the player and removing chunks well behind it.
         load_threshold = (self.next_chunk_column - 1) * self.chunk_size[0]
         if self.player.rect.right >= load_threshold:
@@ -319,29 +334,47 @@ class Game:
             if enemy.rect.right < cleanup_threshold or not enemy.is_visible:
                 enemy.kill()
 
-    def handle_collision(self, enemy):
+        for item in self.item_group:
+            # Kill items far behind
+            if item.rect.right < cleanup_threshold or not item.is_visible:
+                item.kill()
+
+    def handle_enemy_collision(self, enemy):
         if self.player.health - ENEMY_DAMAGE > 0:
-            self.reverse_enemy = enemy
             self.player.update_state(PlayerState.REVERSING)
 
-        self.angular_amplitude -= COLLISION_ANGLE_DEDUCTION
+        self.angular_amplitude -= COLLISION_ANGLE_DEDUCTION_RATIO * self.angular_amplitude
         if self.angular_amplitude < STARTING_ANGULAR_AMPLITUDE: self.angular_amplitude = STARTING_ANGULAR_AMPLITUDE
+        self.player.angular_amplitude = self.angular_amplitude
 
         self.indicator.is_visible = False
         self.arrow.is_visible = False
 
-        self.player.health -= ENEMY_DAMAGE
-        self.healthbar.count -= 1
+        self.player.change_health(-ENEMY_DAMAGE)
+        self.healthbar.count = self.player.health / ENEMY_DAMAGE
 
         self.collision_sound.play()
 
-    def check_collision(self):
+    def check_enemy_collision(self):
         for enemy in self.enemy_group:
             collision = self.player.hitbox_rect.colliderect(enemy.hitbox_rect)
             
             if collision and not enemy.is_exploding: 
-                self.handle_collision(enemy)
+                self.handle_enemy_collision(enemy)
                 enemy.explode()
+
+    def check_item_collision(self):
+        for item in self.item_group:
+            if not item.is_diminishing and self.player.hitbox_rect.colliderect(item.rect):
+                item.apply_effects(self.player)
+                self.angular_amplitude = self.player.angular_amplitude
+                self.healthbar.count = self.player.health / ENEMY_DAMAGE
+
+                self.collision_sound.play()
+
+    def update_items(self):
+        for item in self.item_group:
+            item.update()
 
     def update_music(self):
         if self.music_state != self.menu.state or not pygame.mixer.music.get_busy():
@@ -357,12 +390,20 @@ class Game:
     # Update entity states
     def update(self):
         self.update_music()
+
+        self.difficulty = self.get_difficulty()
+        self.update_attraction_speed()
+
         if self.menu.state != GameState.PLAY: return
 
         # If player is dead
         if self.player.health <= 0:
-            self.game_over_sound.play()
-            self.end_game()
+            if not self.player.is_exploding:
+                self.player.explode()
+            self.player.update()
+            if not self.player.is_visible:
+                self.game_over_sound.play()
+                self.end_game()
             return
 
         # Upon a collision, reverse to previous position like a rewind. I've experimented with a normal repulsion force but the physics gets weird
@@ -380,8 +421,8 @@ class Game:
         # Attraction forces
         for electron in self.player_group:
             for positron in self.enemy_group:
-                electron.apply_attraction(positron) # Apply electron attraction to positron
-                positron.apply_attraction(electron) # Apply positron attraction to electron
+                electron.apply_attraction(positron, self.attraction_speed) # Apply electron attraction to positron
+                positron.apply_attraction(electron, self.attraction_speed) # Apply positron attraction to electron
 
         # Angular amplitude
         self.update_angular_amplitude()
@@ -398,6 +439,9 @@ class Game:
         for enemy in self.enemy_group:
             enemy.update()
 
+        # Update items
+        self.update_items()
+
         # Update arrow angle and visibility
         self.arrow.angular_amplitude = math.radians(self.angular_amplitude)
         self.arrow.update(self.player, self.camera_group.offset)
@@ -408,8 +452,9 @@ class Game:
             self.arrow.is_visible = False
 
         # Cleanup and collisions
-        self.cleanup_enemies()
-        self.check_collision()
+        self.cleanup()
+        self.check_enemy_collision()
+        self.check_item_collision()
                     
     # Drawing handler
     def draw(self):

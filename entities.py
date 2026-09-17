@@ -7,14 +7,87 @@ from config import *
 from utils import *
 
 
-# For applying powerup to player
-class Powerup(pygame.sprite.Sprite):
-    def __init__(self):
+class ItemType(Enum):
+    HEALTH = 0
+    ANGLE = 1
+
+
+class Item(pygame.sprite.Sprite):
+    diminishing_frames = [[], []]
+
+    def __init__(self, type : ItemType, init_x, init_y):
         super().__init__()
 
+        self.type = type
+        self.is_visible = True
+        self.is_diminishing = False
+        self.frame_index = 0
+
+        self.image = self.get_item_image()
+
+        self.rect = self.image.get_rect()
+        self.rect.x = init_x
+        self.rect.y = init_y
+
+    def get_item_image(self):
+        image : pygame.Surface
+
+        if self.type == ItemType.HEALTH:
+            image = pygame.image.load(os.path.join(IMG_DIR, "health.png")).convert_alpha()
+
+        elif self.type == ItemType.ANGLE:
+            image = pygame.image.load(os.path.join(IMG_DIR, "indicator.png")).convert_alpha()
+
+        image = pygame.transform.scale(image, (int(ITEM_SCALE * image.get_width()), int(ITEM_SCALE * image.get_height())))
+        return image
+
+    def draw(self, screen):
+        screen.blit(self.image, self.rect)
+
+    def load_frames(self, animation_type, animation_dir):
+        for i in range(file_count(animation_dir)):
+            frame = pygame.image.load(os.path.join(animation_dir, f" {i + 1}.png")).convert_alpha()
+            frame = pygame.transform.scale(frame, (int(SCALE * frame.get_width()), int(SCALE * frame.get_height())))
+            Item.diminishing_frames[animation_type].append(frame)
+
+    def apply_effects(self, player):
+        if self.is_diminishing:
+            return
+
+        if self.type == ItemType.HEALTH:
+            player.change_health(HEALTH_ITEM_EFFECT)
+            animation_type = ItemType.HEALTH.value
+            animation_dir = HEALTH_DIMINISHING_DIR
+        else:
+            player.angular_amplitude = min(MAXIMUM_ANGULAR_AMPLITUDE, player.angular_amplitude + ANGLE_ITEM_EFFECT)
+            animation_type = ItemType.ANGLE.value
+            animation_dir = ANGLE_DIMINISHING_DIR
+
+        if not Item.diminishing_frames[animation_type]:
+            self.load_frames(animation_type, animation_dir)
+
+        self.is_diminishing = True
+        self.frame_index = 0
+        self.image = Item.diminishing_frames[animation_type][self.frame_index]
+        self.rect = self.image.get_rect(center=self.rect.center)
+
+    def update(self):
+        if not self.is_diminishing:
+            return
+
+        frames = Item.diminishing_frames[self.type.value]
+        if self.frame_index < len(frames) - 1:
+            self.frame_index += 1
+            center = self.rect.center
+            self.image = frames[self.frame_index]
+            self.rect = self.image.get_rect(center=center)
+        else:
+            self.is_visible = False
 
 # Visual bar to represent the player's current health
 class HealthBar(pygame.sprite.Sprite):
+    animation_frames = []
+
     def __init__(self, init_x, init_y):
         super().__init__()
 
@@ -26,11 +99,49 @@ class HealthBar(pygame.sprite.Sprite):
         self.rect.y = init_y
 
         # How many health icons we'll have
-        self.count = 100 / ENEMY_DAMAGE
+        self.count = 100 // ENEMY_DAMAGE
+        self.animation_index = 0
+        self.animation_frame_index = -1
+        self.is_animating = False
+        self.animation_direction = 1
+
+        if not HealthBar.animation_frames:
+            self.load_frames()
+
+    def load_frames(self):
+        for i in range(file_count(HEALTH_DIMINISHING_DIR)):
+            frame = pygame.image.load(os.path.join(HEALTH_DIMINISHING_DIR, f" {i + 1}.png")).convert_alpha()
+            frame = pygame.transform.scale(frame, (int(HEALTH_SCALE * frame.get_width()), int(HEALTH_SCALE * frame.get_height())))
+            HealthBar.animation_frames.append(frame)
+
+    def set_health(self, health):
+        new_count = int(health // ENEMY_DAMAGE)
+        if new_count == self.count or self.is_animating:
+            return
+
+        self.animation_index = min(self.count, new_count)
+        self.animation_frame_index = -1 if new_count < self.count else len(HealthBar.animation_frames)
+        self.animation_direction = 1 if new_count < self.count else -1
+        self.is_animating = True
+
+    def update(self):
+        if not self.is_animating:
+            return
+
+        self.animation_frame_index += self.animation_direction
+        if self.animation_frame_index < 0 or self.animation_frame_index >= len(HealthBar.animation_frames):
+            self.count = self.animation_index if self.animation_direction == 1 else self.animation_index + 1
+            self.is_animating = False
 
     def draw(self, screen):
         for x_pos in range(self.rect.x, int(self.rect.x + self.count * (self.image.get_width() + HEALTH_PADDING)), int(self.image.get_width() + HEALTH_PADDING)):
             screen.blit(self.image, (x_pos, self.rect.y))
+
+        if self.is_animating:
+            x_pos = self.rect.x + self.animation_index * (self.image.get_width() + HEALTH_PADDING)
+            if 0 <= self.animation_frame_index < len(HealthBar.animation_frames):
+                frame = HealthBar.animation_frames[self.animation_frame_index]
+                screen.blit(frame, (x_pos, self.rect.y))
 
 
 # Essentially represents what the player is currently doing
@@ -197,7 +308,7 @@ class Particle(pygame.sprite.Sprite):
         self.update_hitbox()
         self.update_attraction()
 
-    def apply_attraction(self, other):
+    def apply_attraction(self, other, attraction_speed):
         # Get distance between two particles
         offset = pygame.math.Vector2(other.rect.center) - self.rect.center
         distance = offset.length()
@@ -207,7 +318,7 @@ class Particle(pygame.sprite.Sprite):
             return
 
         # Increment by unit vector * speed for attraction
-        self.attraction_displacement += offset.normalize() * ATTRACTION_SPEED
+        self.attraction_displacement += offset.normalize() * attraction_speed
 
     def update_attraction(self):
         self.rect.center += self.attraction_displacement
@@ -245,6 +356,8 @@ class Particle(pygame.sprite.Sprite):
 
 
 class Electron(Particle):
+    explosion_frames = []
+
     def __init__(self):
         super().__init__(charge = -1, mass = 1, vibration_velocity = PLAYER_VIBRATION_VELOCITY) # assuming electron has unit mass
 
@@ -254,14 +367,38 @@ class Electron(Particle):
 
         self.original_image = self.image
 
+        self.frame_count = file_count(ELECTRON_EXPLODING_DIR)
+        self.frame_index = 0
+        self.is_exploding = False
+        if len(Electron.explosion_frames) == 0:
+            self.load_frames()
+
         self.rect = self.image.get_rect()
         self.update_hitbox()
 
     def draw(self, screen : pygame.surface.Surface):
         screen.blit(self.image, self.rect)
 
+    def load_frames(self):
+        for i in range(0, self.frame_count):
+            frame = pygame.image.load(os.path.join(ELECTRON_EXPLODING_DIR, f" {i + 1}.png")).convert_alpha()
+            frame = pygame.transform.scale(frame, (int(SCALE * frame.get_width()), int(SCALE * frame.get_height())))
+            Electron.explosion_frames.append(frame)
+
+    def explode(self):
+        if not self.is_exploding:
+            self.is_exploding = True
+            self.frame_index = 0
+
     def update(self):
         super().update()
+
+        if self.is_exploding:
+            if self.frame_index < self.frame_count - 1:
+                self.image = Electron.explosion_frames[self.frame_index]
+                self.frame_index += 1
+            else:
+                self.is_visible = False
 
 
 class Positron(Particle):
@@ -317,13 +454,19 @@ class Player(Electron):
         self.rect.y = init_y
         self.state = PlayerState.AIMING # Initially start off by aiming
 
-        self.health = 100
+        self.health = INITIAL_HEALTH
+        self.angular_amplitude = STARTING_ANGULAR_AMPLITUDE
 
         self.last_pos = pygame.math.Vector2(self.rect.x, self.rect.y) # For reversing during a collision
 
     def update_state(self, new_state):
         if self.state != new_state:
             self.state = new_state
+
+    def change_health(self, amount):
+        previous_health = self.health
+        self.health = max(0, min(MAX_HEALTH, self.health + amount))
+
 
     # Changes acceleration and angle for electron
     def move(self, angle, initial_acceleration = INITIAL_ACCELERATION):
@@ -358,7 +501,7 @@ class Player(Electron):
         # Wrap angle difference between +pi/-pi
         difference = (self.target_angle - self.angle + math.pi) % (2 * math.pi) - math.pi
 
-        if abs(difference) > MIN_ROTATION:
+        if abs(difference) > MIN_ROTATION and not self.is_exploding:
             rotation_angle = max(-ELECTRON_ROTATION, min(ELECTRON_ROTATION, difference))
 
             self.angle += rotation_angle
